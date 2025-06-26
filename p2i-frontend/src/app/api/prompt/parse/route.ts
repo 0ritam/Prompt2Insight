@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseUserPrompt } from "~/lib/prompt-parser";
+import { parseUserPrompt } from "~/agents/promptParserAgent";
 import { z } from "zod";
 
 // Input validation schema

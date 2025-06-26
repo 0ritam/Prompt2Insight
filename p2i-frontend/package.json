@@ -46,6 +46,7 @@
     "sonner": "^2.0.5",
     "tailwind-merge": "^3.3.1",
     "ts-prompt": "^0.3.1",
+    "uuid": "^11.1.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
