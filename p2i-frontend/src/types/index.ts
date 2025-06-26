@@ -1,5 +1,12 @@
 // Types for Prompt2Insight project
 
+export type Message = {
+  id: string;
+  role: "user" | "system";
+  content: string;
+  timestamp: string;
+};
+
 export type ParsedPrompt = {
   intent: "compare" | "search" | "recommend";
   products: string[];

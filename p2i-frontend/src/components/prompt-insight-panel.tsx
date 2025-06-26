@@ -1,20 +1,11 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
-import { ScrollArea } from "~/components/ui/scroll-area";
-import { Button } from "~/components/ui/button";
-import { Card } from "~/components/ui/card";
-import { Textarea } from "~/components/ui/textarea";
+import React, { useState, useEffect } from "react";
 import { Separator } from "~/components/ui/separator";
 import { toast } from "sonner";
-
-// Mock message type
-type Message = {
-  id: string;
-  role: "user" | "system";
-  content: string;
-  timestamp: string;
-};
+import { MessagesArea } from "./messages-area";
+import { PromptInput } from "./prompt-input";
+import type { Message } from "~/types";
 
 const formatTime = () => new Date().toLocaleTimeString(undefined, {
   hour: "2-digit",
@@ -39,11 +30,13 @@ const initialMessages: Message[] = [
   },
 ];
 
-export function PromptInsightPanel() {
+interface PromptInsightPanelProps {
+  onPromptSubmit: (prompt: string) => Promise<void>;
+  isLoading: boolean;
+}
+
+export function PromptInsightPanel({ onPromptSubmit, isLoading }: PromptInsightPanelProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Set initial timestamp on client side only
   useEffect(() => {
@@ -55,51 +48,40 @@ export function PromptInsightPanel() {
     }
   }, []);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const handleSubmit = async () => {
-    if (!input.trim()) {
-      toast.error("Please enter a prompt first!");
-      return;
-    }
-
-    setIsLoading(true);
-
+  const handleSubmit = async (promptText: string) => {
     // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: input,
+      content: promptText,
       timestamp: formatTime(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInput("");
 
-    // Simulate API delay
-    setTimeout(() => {
-      // Add system response
+    try {
+      await onPromptSubmit(promptText);
+      
+      // Add success message
       const systemMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "system",
-        content: "This is a simulated response. In the real application, this would be replaced with actual AI-generated insights about the products you're asking about.",
+        content: "Your prompt has been processed successfully!",
         timestamp: formatTime(),
       };
 
       setMessages((prev) => [...prev, systemMessage]);
-      setIsLoading(false);
-      toast.success("Insight generated!");
-    }, 1500);
+    } catch (error) {
+      toast.error("Failed to process your prompt. Please try again.");
+    }
+  };
+
+  const handleExamplePrompt = (prompt: string) => {
+    handleSubmit(prompt);
   };
 
   const clearHistory = () => {
-    setMessages(initialMessages);
+    setMessages([...initialMessages]);
     toast.success("History cleared!");
   };
 
@@ -107,90 +89,27 @@ export function PromptInsightPanel() {
     <div className="flex h-screen">
       {/* Left Sidebar */}
       <div className="w-[250px] h-screen border-r flex flex-col bg-background">
-        <div className="p-4 font-semibold">Prompt History</div>
+        <div className="p-4 font-semibold">Example Prompts</div>
         <Separator />
-        <ScrollArea className="flex-1 p-4">
+        <div className="flex-1 p-4">
           <div className="space-y-2">
             {examplePrompts.map((prompt, i) => (
               <div
                 key={i}
                 className="p-2 rounded-lg hover:bg-muted cursor-pointer text-sm"
-                onClick={() => setInput(prompt)}
+                onClick={() => handleExamplePrompt(prompt)}
               >
                 {prompt}
               </div>
             ))}
           </div>
-        </ScrollArea>
-        <Separator />
-        <div className="p-4">
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={clearHistory}
-          >
-            Clear History
-          </Button>
         </div>
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen">
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 pt-20">
-          <ScrollArea className="h-full">
-            <div className="space-y-4">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${
-                    message.role === "user" ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  <Card
-                    className={`max-w-[80%] p-4 ${
-                      message.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
-                    }`}
-                  >                    <div className="text-sm">{message.content}</div>
-                    {message.timestamp && (
-                      <div className="text-xs mt-2 opacity-70">
-                        {message.timestamp}
-                      </div>
-                    )}
-                  </Card>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          </ScrollArea>
-        </div>
-
-        {/* Input Area */}
-        <div className="p-4 border-t bg-background sticky bottom-0">
-          <div className="flex gap-2">
-            <Textarea
-              placeholder="Enter your product analysis prompt..."
-              value={input}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value)}
-              className="min-h-[60px]"
-              onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit();
-                }
-              }}
-            />
-            <Button
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className="px-6"
-            >
-              {isLoading ? "Generating..." : "Generate Insight"}
-            </Button>
-          </div>
-        </div>
+        <MessagesArea messages={messages} />
+        <PromptInput onSubmit={handleSubmit} isLoading={isLoading} />
       </div>
     </div>
   );
