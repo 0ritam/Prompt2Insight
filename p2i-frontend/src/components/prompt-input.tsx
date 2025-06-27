@@ -33,7 +33,7 @@ export function PromptInput({ onSubmit, isLoading }: PromptInputProps) {
           disabled={isLoading}
         />
         <Button type="submit" disabled={isLoading || !prompt.trim()}>
-          Send
+          Generate
         </Button>
       </div>
     </form>
