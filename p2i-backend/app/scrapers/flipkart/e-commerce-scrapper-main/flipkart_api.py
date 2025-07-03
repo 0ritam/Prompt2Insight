@@ -4,6 +4,7 @@ Usage: uvicorn flipkart_api:app --reload --port 8000
 """
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 import json
@@ -16,6 +17,15 @@ app = FastAPI(
     title="Flipkart Scraper API",
     description="Fast microservice for scraping Flipkart products",
     version="1.0.0"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Global scraper instance
@@ -51,6 +61,37 @@ class ScrapeResponse(BaseModel):
 
 # In-memory storage for async tasks (use Redis in production)
 task_results = {}
+
+# AI fallback products
+FAKE_AI_PRODUCTS = [
+    {
+        "title": "AI Generated Product 1",
+        "price": "₹15,999",
+        "rating": "4.5",
+        "reviews": "1,234",
+        "description": "High-quality AI generated product with excellent features",
+        "url": "#ai-product-1",
+        "image": "https://picsum.photos/400/400?random=1"
+    },
+    {
+        "title": "AI Generated Product 2", 
+        "price": "₹25,999",
+        "rating": "4.3",
+        "reviews": "856",
+        "description": "Premium AI generated product for professional use",
+        "url": "#ai-product-2",
+        "image": "https://picsum.photos/400/400?random=2"
+    },
+    {
+        "title": "AI Generated Product 3",
+        "price": "₹12,999", 
+        "rating": "4.7",
+        "reviews": "2,456",
+        "description": "Budget-friendly AI generated product with great value",
+        "url": "#ai-product-3",
+        "image": "https://picsum.photos/400/400?random=3"
+    }
+]
 
 @app.on_event("startup")
 async def startup_event():
@@ -115,12 +156,28 @@ async def scraper_health_check():
         }
 
 @app.post("/scrape-structured")
-async def scrape_with_structured_input(request: StructuredScrapeRequest):
+async def scrape_with_structured_input(request: StructuredScrapeRequest, force_ai: bool = False):
     """
     Scrape products using structured input from prompt parser agent
     Matches the exact format from your prompt template
     """
     try:
+        print(f"DEBUG: force_ai parameter: {force_ai}")
+        print(f"DEBUG: Request: {request}")
+        
+        if force_ai:
+            # Return AI fallback products
+            return {
+                "success": True,
+                "intent": request.intent,
+                "products_requested": request.products,
+                "products_found": len(FAKE_AI_PRODUCTS),
+                "execution_time": 0.1,
+                "results": FAKE_AI_PRODUCTS,
+                "source": "ai-fallback",
+                "timestamp": int(time.time())
+            }
+        
         if not scraper:
             raise HTTPException(status_code=500, detail="Scraper not initialized")
         
@@ -130,6 +187,9 @@ async def scrape_with_structured_input(request: StructuredScrapeRequest):
         # Process each product in the list
         all_results = []
         total_start_time = time.time()
+        
+        # Use the max_products_per_query from request
+        max_products = min(request.max_products_per_query, 10)  # Cap at 10 for performance
         
         for product_name in request.products:
             
@@ -210,7 +270,7 @@ async def scrape_with_structured_input(request: StructuredScrapeRequest):
                 
                 # Limit results per product
                 if result["success"] and result["products"]:
-                    limited_products = result["products"][:request.max_products_per_query]
+                    limited_products = result["products"][:max_products]
                     for product in limited_products:
                         product["source_query"] = product_name
                         product["enhanced_query"] = enhanced_query.strip()

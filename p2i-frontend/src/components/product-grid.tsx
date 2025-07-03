@@ -58,6 +58,25 @@ export function ProductGrid({
   // Gemini fallback notification when scraper failed
   const showFallbackMessage = source === "gemini" && fallback;
   
+  // Debug logging
+  console.log("ProductGrid products:", products);
+  
+  // Ensure products is a valid array
+  const validProducts = Array.isArray(products) ? products.filter(product => 
+    product && typeof product === 'object' && product !== null
+  ) : [];
+  
+  if (validProducts.length === 0) {
+    return (
+      <Alert className="mb-4">
+        <AlertTitle>No valid products found</AlertTitle>
+        <AlertDescription>
+          Try a different search or adjust your filters.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+  
   return (
     <div className="space-y-4">
       {showFallbackMessage && (
@@ -71,13 +90,26 @@ export function ProductGrid({
       )}
       
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {products.map((product, index) => (
-          <ProductCard 
-            key={`${source}-product-${index}`} 
-            product={product} 
-            source={source} 
-          />
-        ))}
+        {validProducts.map((product, index) => {
+          console.log("Rendering product:", product, "at index:", index);
+          try {
+            return (
+              <ProductCard 
+                key={`${source}-product-${index}-${product.title || product.name || index}`} 
+                product={product} 
+                source={source} 
+              />
+            );
+          } catch (error) {
+            console.error("Error rendering product at index", index, ":", error, "Product:", product);
+            return (
+              <div key={`error-${index}`} className="p-4 border border-red-200 rounded">
+                <p className="text-red-600 text-sm">Error rendering product {index + 1}</p>
+                <pre className="text-xs text-red-500 mt-2">{JSON.stringify(product, null, 2)}</pre>
+              </div>
+            );
+          }
+        })}
       </div>
     </div>
   );

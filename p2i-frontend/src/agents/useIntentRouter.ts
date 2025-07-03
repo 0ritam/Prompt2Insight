@@ -23,7 +23,7 @@ interface IntentRouterState {
 }
 
 interface UseIntentRouterResult extends IntentRouterState {
-  routeUserIntent: (parsedPrompt: ParsedPrompt, originPrompt: string) => Promise<RoutedResult>;
+  routeUserIntent: (parsedPrompt: ParsedPrompt, originPrompt: string, forceAI?: boolean) => Promise<RoutedResult>;
 }
 
 export function useIntentRouter(): UseIntentRouterResult {
@@ -40,64 +40,51 @@ export function useIntentRouter(): UseIntentRouterResult {
    * Routes the user intent to the appropriate agent based on intent
    * @param parsedPrompt The parsed user prompt with intent and products
    * @param originPrompt The original user prompt text
+   * @param forceAI Optional flag to force AI-generated products instead of scraping
    * @returns Promise with the unified result
    */
   const routeUserIntent = async (
     parsedPrompt: ParsedPrompt, 
-    originPrompt: string
+    originPrompt: string,
+    forceAI?: boolean
   ): Promise<RoutedResult> => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      let result: RoutedResult;
+      // Build scrape tasks from the parsed prompt
+      const scrapeTasks = buildScrapeInstructions(parsedPrompt);
+      console.log("Scrape tasks:", scrapeTasks);
 
-      if (parsedPrompt.intent === "compare") {
+      // Try scraper first (unless forceAI is explicitly true)
+      if (forceAI) {
+        console.log("Force AI mode enabled, skipping scraper");
+      } else {
         try {
-          // Try to use the scraper for comparison intents
-          const scrapeTasks = buildScrapeInstructions(parsedPrompt);
-          console.log("Using scraper for comparison intent", scrapeTasks);
-          const scrapedData = await fetchScrapedProducts(scrapeTasks);
-          
-          // Check if the scraper returned data
-          if (scrapedData && scrapedData.length > 0) {
-            result = {
+          console.log("Attempting to fetch scraped products...");
+          const scrapedProducts = await fetchScrapedProducts(scrapeTasks, false);
+          if (scrapedProducts && scrapedProducts.length > 0) {
+            const result: RoutedResult = {
               source: "scraper",
-              data: scrapedData,
+              data: scrapedProducts,
               originalPrompt: originPrompt
             };
-          } else {
-            // Empty result from scraper, fallback to Gemini
-            console.error("Scraper returned empty results, falling back to Gemini");
-            const suggestions = await fetchGeminiSuggestions(originPrompt);
-            result = {
-              source: "gemini",
-              data: suggestions,
-              originalPrompt: originPrompt,
-              fallback: true
-            };
+            setState(prev => ({ ...prev, isLoading: false, result }));
+            return result;
           }
-        } catch (scraperError) {
-          console.error("Scraper failed, falling back to Gemini", scraperError);
-          // Fallback to Gemini if scraper fails
-          const suggestions = await fetchGeminiSuggestions(originPrompt);
-          result = {
-            source: "gemini",
-            data: suggestions,
-            originalPrompt: originPrompt,
-            fallback: true
-          };
+        } catch (error) {
+          console.error("Scraper failed, falling back to Gemini:", error);
         }
-      } else {
-        // For search or recommend intents, use Gemini directly
-        console.log("Using Gemini for search/recommend intent");
-        const suggestions = await fetchGeminiSuggestions(originPrompt);
-        result = {
-          source: "gemini", 
-          data: suggestions,
-          originalPrompt: originPrompt
-        };
       }
 
+      // Fallback to Gemini if scraper fails or forceAI is true
+      const suggestions = await fetchGeminiSuggestions(originPrompt);
+      const result: RoutedResult = {
+        source: "gemini",
+        data: suggestions,
+        originalPrompt: originPrompt,
+        fallback: true
+      };
+      
       setState((prev) => ({ ...prev, isLoading: false, result }));
       return result;
     } catch (error: any) {

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PromptInsightPanel } from "~/components/prompt-insight-panel";
 import { PromptDebugger } from "~/components/prompt-debugger";
 import { ProductGrid } from "~/components/product-grid";
+import { DevModeToggle } from "~/components/dev-mode-toggle";
 import { type ParsedPrompt, type ScrapeSession } from "~/types";
 import { useIntentRouter, type RoutedResult } from "~/agents/useIntentRouter";
 
@@ -13,6 +14,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [originalPrompt, setOriginalPrompt] = useState("");
   const [result, setResult] = useState<RoutedResult | null>(null);
+  const [forceAI, setForceAI] = useState(false);
   
   // Use our intent router
   const { routeUserIntent, isLoading: routerLoading } = useIntentRouter();
@@ -55,7 +57,7 @@ export default function DashboardPage() {
       // Use our intent router to get the right data source
       try {
         toast.info(`Processing ${parsedPrompt.intent} intent...`);
-        const routedResult = await routeUserIntent(parsedPrompt, prompt);
+        const routedResult = await routeUserIntent(parsedPrompt, prompt, forceAI);
         setResult(routedResult);
         
         if (routedResult.source === "scraper") {
@@ -106,6 +108,13 @@ export default function DashboardPage() {
             <PromptDebugger session={session} />
           </div>
         )}
+      </div>
+
+      <div className="container mx-auto py-8">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <DevModeToggle forceAI={forceAI} onToggle={setForceAI} />
+        </div>
       </div>
     </div>
   );

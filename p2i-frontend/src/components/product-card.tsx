@@ -13,50 +13,75 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, source }: ProductCardProps) {
-  // Handle different product data structures from different sources
-  const productName = product.title || product.name || "Unknown Product";
-  const productPrice = product.price || "N/A";
-  const productRating = product.rating || "N/A";
-  const productImage = product.image || "/placeholder-product.jpg";
-  const productUrl = product.url || "#";
-  const productDescription = product.description || product.specs?.description || "";
+  // Debug: Log the product data
+  console.log("ProductCard received product:", product);
   
-  // Format specs if they exist
-  const specs = product.specifications || product.specs || {};
-  const specsList = Object.entries(specs).filter(([key]) => 
-    key !== "description" && typeof specs[key] === "string"
-  ).slice(0, 3);
+  // Helper function to safely convert values to strings
+  const safeString = (value: any): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "number") return value.toString();
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+  };
+
+  // Handle different product data structures from different sources
+  const productName = safeString(product.title || product.name || "Unknown Product");
+  const productPrice = safeString(product.price || "N/A");
+  const productRating = safeString(product.rating || "N/A");
+  const productImage = safeString(product.image || "/placeholder-product.jpg");
+  const productUrl = safeString(product.url || product.productUrl || "#");
+  const productDescription = safeString(product.description || product.specifications || "");
+  
+  // Format additional info if it exists
+  const discount = safeString(product.discount || "");
+  const availability = safeString(product.availability || "");
+  const brand = safeString(product.brand || "");
 
   return (
     <Card className="h-full flex flex-col overflow-hidden">
       <CardHeader className="pb-0 pt-4 px-4 flex flex-row justify-between items-start">
-        <div>
+        <div className="flex-1">
           <h3 className="font-medium text-sm line-clamp-2">{productName}</h3>
           <div className="flex items-center gap-2 mt-1">
             <span className="font-semibold text-primary">{productPrice}</span>
-            {productRating && (
+            {discount && (
+              <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
+                {discount}
+              </span>
+            )}
+            {productRating && productRating !== "N/A" && (
               <span className="text-xs bg-muted px-1.5 py-0.5 rounded flex items-center">
                 ★ {productRating}
               </span>
             )}
           </div>
+          {brand && (
+            <div className="text-xs text-muted-foreground mt-1">
+              Brand: {brand}
+            </div>
+          )}
         </div>
         <Badge 
           variant={source === "scraper" ? "default" : "outline"}
           className={source === "scraper" ? "bg-green-600" : "border-amber-500 text-amber-500"}
         >
-          {source === "scraper" ? "Real-Time Data" : "AI-Suggested"}
+          {source === "scraper" ? "Live Data" : "AI-Suggested"}
         </Badge>
       </CardHeader>
       
       <CardContent className="px-4 py-2 flex-grow">
-        {productImage && (
+        {productImage && productImage !== "/placeholder-product.jpg" && (
           <div className="relative w-full aspect-[4/3] mb-3 bg-muted/30 rounded-md overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img 
               src={productImage} 
               alt={productName}
               className="object-contain w-full h-full"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
             />
           </div>
         )}
@@ -67,15 +92,10 @@ export function ProductCard({ product, source }: ProductCardProps) {
           </p>
         )}
         
-        {specsList.length > 0 && (
-          <dl className="text-xs space-y-1">
-            {specsList.map(([key, value]) => (
-              <div key={key} className="flex justify-between">
-                <dt className="text-muted-foreground">{key}:</dt>
-                <dd className="font-medium truncate max-w-[70%] text-right">{String(value)}</dd>
-              </div>
-            ))}
-          </dl>
+        {availability && (
+          <div className="text-xs text-muted-foreground mb-2">
+            Status: <span className="text-green-600">{availability}</span>
+          </div>
         )}
       </CardContent>
       
