@@ -8,6 +8,16 @@ import sys
 import os
 import uvicorn
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Debug: Check if environment variables are loaded
+google_api_key = os.getenv("GOOGLE_CSE_API_KEY")
+google_engine_id = os.getenv("GOOGLE_CSE_ENGINE_ID")
+print(f"🔑 Google API Key loaded: {'✅' if google_api_key else '❌'}")
+print(f"🔍 Google Engine ID loaded: {'✅' if google_engine_id else '❌'}")
 
 # Add the scraper directory to Python path
 scraper_dir = Path(__file__).parent / "app" / "scrapers" / "flipkart" / "e-commerce-scrapper-main"

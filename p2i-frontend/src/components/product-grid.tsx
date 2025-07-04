@@ -56,7 +56,10 @@ export function ProductGrid({
   }
 
   // Gemini fallback notification when scraper failed
-  const showFallbackMessage = source === "gemini" && fallback;
+  const showGeminiFallbackMessage = source === "gemini" && fallback;
+  
+  // Google Search fallback notification when scraper failed
+  const showGoogleFallbackMessage = source === "google";
   
   // Debug logging
   console.log("ProductGrid products:", products);
@@ -79,12 +82,22 @@ export function ProductGrid({
   
   return (
     <div className="space-y-4">
-      {showFallbackMessage && (
+      {showGeminiFallbackMessage && (
         <Alert className="mb-4 border-amber-500/50 bg-amber-500/10">
           <AlertTriangle className="text-amber-500" />
           <AlertTitle>Using AI-suggested results</AlertTitle>
           <AlertDescription>
             ⚠️ Could not fetch live data, showing AI-suggested results instead.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {showGoogleFallbackMessage && (
+        <Alert className="mb-4 border-blue-500/50 bg-blue-500/10">
+          <AlertTriangle className="text-blue-500" />
+          <AlertTitle>Using Google Search results</AlertTitle>
+          <AlertDescription>
+            🔍 Could not fetch live data, showing Google Search results instead.
           </AlertDescription>
         </Alert>
       )}

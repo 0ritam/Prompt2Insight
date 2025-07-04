@@ -13,6 +13,8 @@ export const env = createEnv({
         : z.string().optional(),
     DATABASE_URL: z.string().url(),
     GEMINI_API_KEY: z.string(),
+    GOOGLE_CSE_ENGINE_ID:z.string(),
+    GOOGLE_CSE_API_KEY:z.string(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -35,6 +37,8 @@ export const env = createEnv({
     AUTH_SECRET: process.env.AUTH_SECRET,
     DATABASE_URL: process.env.DATABASE_URL,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    GOOGLE_CSE_API_KEY:process.env.GOOGLE_CSE_API_KEY,
+    GOOGLE_CSE_ENGINE_ID:process.env.GOOGLE_CSE_ENGINE_ID,
     NODE_ENV: process.env.NODE_ENV,
   },
   /**

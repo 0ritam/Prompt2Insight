@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [originalPrompt, setOriginalPrompt] = useState("");
   const [result, setResult] = useState<RoutedResult | null>(null);
+  const [googleResults, setGoogleResults] = useState<any[]>([]);
   const [forceAI, setForceAI] = useState(false);
   
   // Use our intent router
@@ -96,16 +97,45 @@ export default function DashboardPage() {
               products={result.data}
               source={result.source}
               prompt={originalPrompt}
-              fallback={result.fallback}
+              fallback={result.fallback || result.googleFallback}
             />
           </div>
         )}
         
         {/* Debug panel in development mode */}
-        {process.env.NODE_ENV === "development" && session && (
+        {process.env.NODE_ENV === "development" && (
           <div className="mt-8">
             <h3 className="text-lg font-semibold mb-2">Debug Information</h3>
-            <PromptDebugger session={session} />
+            {session && <PromptDebugger session={session} />}
+            {result && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-medium mb-2">Result Debug</h4>
+                <p className="text-sm text-gray-600 mb-2">
+                  Source: <span className="font-mono">{result.source}</span>
+                </p>
+                <p className="text-sm text-gray-600 mb-2">
+                  Products: {result.data.length}
+                </p>
+                {result.fallback && (
+                  <p className="text-sm text-amber-600 mb-2">
+                    ⚠️ Fallback to Gemini AI was used
+                  </p>
+                )}
+                {result.googleFallback && (
+                  <p className="text-sm text-blue-600 mb-2">
+                    🔍 Google Search fallback was used
+                  </p>
+                )}
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-sm text-gray-600">
+                    View raw data
+                  </summary>
+                  <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-48">
+                    {JSON.stringify(result.data, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            )}
           </div>
         )}
       </div>

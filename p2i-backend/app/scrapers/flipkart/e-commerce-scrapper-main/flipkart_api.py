@@ -3,6 +3,18 @@ FastAPI Microservice for Flipkart Scraping
 Usage: uvicorn flipkart_api:app --reload --port 8000
 """
 
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Debug: Check if environment variables are loaded
+google_api_key = os.getenv("GOOGLE_CSE_API_KEY")
+google_engine_id = os.getenv("GOOGLE_CSE_ENGINE_ID")
+print(f"🔑 Google API Key loaded: {'✅' if google_api_key else '❌'}")
+print(f"🔍 Google Engine ID loaded: {'✅' if google_engine_id else '❌'}")
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -10,7 +22,9 @@ from typing import Dict, List, Optional
 import json
 import uuid
 import time
+import re
 from flipkart_microservice_scraper import FlipkartScraper
+from google_search import google_search
 from datetime import datetime
 
 app = FastAPI(
@@ -48,6 +62,10 @@ class StructuredScrapeRequest(BaseModel):
     attributes: Optional[List[str]] = None  # ["processor", "ram", "storage"]
     site: str = "flipkart"  # Target site
     max_products_per_query: int = 5  # How many products per search term
+
+class GoogleSearchRequest(BaseModel):
+    query: str
+    num_results: int = 3
 
 class ScrapeResponse(BaseModel):
     success: bool
@@ -118,6 +136,7 @@ async def root():
             "/scrape-exact": "POST - Scrape exact URLs",
             "/scrape-structured": "POST - Scrape with structured input (prompt parser format)",
             "/scrape-natural": "POST - Natural language queries (e.g., 'lenovo gaming laptops under 80000')",
+            "/google-search": "POST - Search products using Google Custom Search API",
             "/task/{task_id}": "GET - Get async task result",
             "/health": "GET - Health check",
             "/health-check": "GET - Scraper health check"
@@ -618,3 +637,28 @@ def parse_natural_language_query(query: str) -> Dict:
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
+
+@app.post("/google-search")
+async def search_google_products(request: GoogleSearchRequest):
+    """
+    Search for products using Google Custom Search API
+    Returns top product results with images and descriptions
+    """
+    try:
+        results = google_search.search_products(
+            query=request.query, 
+            num_results=request.num_results
+        )
+        
+        return {
+            "success": True,
+            "query": request.query,
+            "results_found": len(results),
+            "results": results,
+            "timestamp": int(time.time())
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Google search failed: {str(e)}")

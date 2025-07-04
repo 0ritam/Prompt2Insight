@@ -27,16 +27,17 @@ export function ProductCard({ product, source }: ProductCardProps) {
 
   // Handle different product data structures from different sources
   const productName = safeString(product.title || product.name || "Unknown Product");
-  const productPrice = safeString(product.price || "N/A");
+  const productPrice = safeString(product.price || "Price not available");
   const productRating = safeString(product.rating || "N/A");
   const productImage = safeString(product.image || "/placeholder-product.jpg");
   const productUrl = safeString(product.url || product.productUrl || "#");
-  const productDescription = safeString(product.description || product.specifications || "");
+  const productDescription = safeString(product.description || product.specifications || product.snippet || "");
   
   // Format additional info if it exists
   const discount = safeString(product.discount || "");
   const availability = safeString(product.availability || "");
   const brand = safeString(product.brand || "");
+  const sourceLabel = safeString(product.source || "");
 
   return (
     <Card className="h-full flex flex-col overflow-hidden">
@@ -61,12 +62,27 @@ export function ProductCard({ product, source }: ProductCardProps) {
               Brand: {brand}
             </div>
           )}
+          {sourceLabel && source === "google" && (
+            <div className="text-xs text-muted-foreground mt-1">
+              Source: {sourceLabel}
+            </div>
+          )}
         </div>
         <Badge 
           variant={source === "scraper" ? "default" : "outline"}
-          className={source === "scraper" ? "bg-green-600" : "border-amber-500 text-amber-500"}
+          className={
+            source === "scraper" 
+              ? "bg-green-600" 
+              : source === "google" 
+                ? "border-blue-500 text-blue-600 bg-blue-50"
+                : "border-amber-500 text-amber-500"
+          }
         >
-          {source === "scraper" ? "Live Data" : "AI-Suggested"}
+          {source === "scraper" 
+            ? "Live Data" 
+            : source === "google" 
+              ? "Web/Google Suggested" 
+              : "AI-Suggested"}
         </Badge>
       </CardHeader>
       
