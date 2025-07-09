@@ -61,9 +61,29 @@ model User {
     emailVerified DateTime?
     password      String
     image         String?
+    role          String  @default("user")
     accounts      Account[]
     sessions      Session[]
     posts         Post[]
+    promptSessions PromptSession[]
+}
+
+model PromptSession {
+    id            String   @id @default(cuid())
+    sessionId     String   @unique @default(cuid())
+    userId        String
+    originPrompt  String
+    status        String   @default("pending") // "pending" | "parsed" | "done" | "error"
+    resultData    String?  // JSON string of results
+    errorMessage  String?
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+    
+    user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    
+    @@index([userId])
+    @@index([createdAt])
+    @@index([status])
 }
 
 model VerificationToken {

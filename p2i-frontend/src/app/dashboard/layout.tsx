@@ -19,7 +19,7 @@ export default async function DashboardLayout({
     }
 
     return <div className="flex min-h-screen flex-col">
-        <NavHeader email={session.user.email} />
+        <NavHeader email={session.user.email} userRole={session.user.role} />
         <main className="container mx-auto flex-1 py-6">{children}</main>
     </div>
 }

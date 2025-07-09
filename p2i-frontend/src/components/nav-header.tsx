@@ -13,7 +13,7 @@ import {
 import { signOut } from "next-auth/react";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 
-const NavHeader = ({ email }: {email: string }) => {
+const NavHeader = ({ email, userRole }: { email: string; userRole?: string }) => {
   return (
     <header className="bg-background sticky top-0 z-10 flex justify-center border-b">
       <div className="container flex h-16 items-center justify-between px-4 py-2">
@@ -45,6 +45,13 @@ const NavHeader = ({ email }: {email: string }) => {
               <DropdownMenuItem asChild>
                 <Link href="/dashboard/billing">Billing</Link>
               </DropdownMenuItem>
+              {userRole === "admin" && (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin">Admin Panel</Link>
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => signOut({ redirectTo: "/login" })}

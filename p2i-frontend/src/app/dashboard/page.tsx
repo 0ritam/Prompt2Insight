@@ -8,6 +8,9 @@ import { ProductGrid } from "~/components/product-grid";
 import { DevModeToggle } from "~/components/dev-mode-toggle";
 import { type ParsedPrompt, type ScrapeSession } from "~/types";
 import { useIntentRouter, type RoutedResult } from "~/agents/useIntentRouter";
+import { generateSessionId } from "~/lib/session";
+import { logPromptSession, updatePromptSession } from "~/lib/clientLogger";
+import { useSession } from "next-auth/react";
 
 export default function DashboardPage() {
   const [session, setSession] = useState<ScrapeSession | null>(null);
@@ -16,14 +19,30 @@ export default function DashboardPage() {
   const [result, setResult] = useState<RoutedResult | null>(null);
   const [googleResults, setGoogleResults] = useState<any[]>([]);
   const [forceAI, setForceAI] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   
   // Use our intent router
   const { routeUserIntent, isLoading: routerLoading } = useIntentRouter();
+  const { data: authSession } = useSession();
 
   const handlePromptSubmit = async (prompt: string) => {
     try {
       setLoading(true);
       setOriginalPrompt(prompt);
+
+      // Generate a new session ID for this prompt
+      const sessionId = generateSessionId();
+      setCurrentSessionId(sessionId);
+
+      // Log the initial prompt session
+      if (authSession?.user?.id) {
+        await logPromptSession({
+          sessionId,
+          userId: authSession.user.id,
+          originPrompt: prompt,
+          status: "pending",
+        });
+      }
 
       // First, parse the prompt
       const parseResponse = await fetch("/api/prompt/parse", {
@@ -34,10 +53,24 @@ export default function DashboardPage() {
 
       if (!parseResponse.ok) {
         const error = await parseResponse.json();
+        // Update session with error
+        if (authSession?.user?.id && sessionId) {
+          await updatePromptSession(sessionId, {
+            status: "error",
+            errorMessage: error.message || "Failed to parse prompt",
+          });
+        }
         throw new Error(error.message || "Failed to parse prompt");
       }
 
       const parsedPrompt: ParsedPrompt = await parseResponse.json();
+
+      // Update session status to parsed
+      if (authSession?.user?.id && sessionId) {
+        await updatePromptSession(sessionId, {
+          status: "parsed",
+        });
+      }
 
       // Then, get scraping instructions
       const instructionResponse = await fetch("/api/route-instruction", {
@@ -61,13 +94,37 @@ export default function DashboardPage() {
         const routedResult = await routeUserIntent(parsedPrompt, prompt, forceAI);
         setResult(routedResult);
         
+        // Update session with results
+        if (authSession?.user?.id && sessionId) {
+          await updatePromptSession(sessionId, {
+            status: "done",
+            resultData: {
+              source: routedResult.source,
+              dataCount: routedResult.data.length,
+              fallback: routedResult.fallback,
+              googleFallback: routedResult.googleFallback,
+            },
+          });
+        }
+        
         if (routedResult.source === "scraper") {
           toast.success(`Found ${routedResult.data.length} products from live data`);
+        } else if (routedResult.source === "google") {
+          toast.success(`Found ${routedResult.data.length} results from Google Search`);
         } else {
           toast.success(`Generated AI product suggestions`);
         }
       } catch (routerError) {
         console.error("Router error:", routerError);
+        
+        // Update session with error
+        if (authSession?.user?.id && sessionId) {
+          await updatePromptSession(sessionId, {
+            status: "error",
+            errorMessage: routerError instanceof Error ? routerError.message : "Failed to process intent",
+          });
+        }
+        
         toast.error("Failed to process intent");
       }
 
@@ -143,7 +200,17 @@ export default function DashboardPage() {
       <div className="container mx-auto py-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Dashboard</h1>
-          <DevModeToggle forceAI={forceAI} onToggle={setForceAI} />
+          <div className="flex gap-2">
+            <DevModeToggle forceAI={forceAI} onToggle={setForceAI} />
+            {authSession?.user?.role === "admin" && (
+              <a 
+                href="/admin" 
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Admin Panel
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>

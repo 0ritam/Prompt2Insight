@@ -1,4 +1,3 @@
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import { type DefaultSession, type NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { db } from "~/server/db";
@@ -14,15 +13,14 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
+      role: "user" | "admin";
       // ...other properties
-      // role: UserRole;
     } & DefaultSession["user"];
   }
 
-  // interface User {
-  //   // ...other properties
-  //   // role: UserRole;
-  // }
+  interface User {
+    role: "user" | "admin";
+  }
 }
 
 /**
@@ -57,25 +55,32 @@ export const authConfig = {
         const passwordMatch = await comparePasswords(password, user.password);
         if (!passwordMatch) return null;
 
-        return user;
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role as "user" | "admin",
+          image: user.image,
+        };
       },
     }),
   ],
   session: { strategy: "jwt" },
-  adapter: PrismaAdapter(db),
   callbacks: {
     session: ({ session, token }) => ({
       ...session,
       user: {
         ...session.user,
         id: token.sub,
+        role: token.role as "user" | "admin",
       },
     }),
-    jwt: ({token, user}) => {
+    jwt: ({ token, user }) => {
       if (user) {
-        token.id = user.id
+        token.id = user.id;
+        token.role = user.role;
       }
-      return token
+      return token;
     }
   },
 } satisfies NextAuthConfig;
