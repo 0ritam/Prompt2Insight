@@ -142,23 +142,12 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-background">
       <PromptInsightPanel 
         onPromptSubmit={handlePromptSubmit} 
-        isLoading={loading || routerLoading} 
+        isLoading={loading || routerLoading}
+        result={result}
+        originalPrompt={originalPrompt}
       />
       
       <div className="container max-w-4xl mx-auto pb-8 px-4">
-        {/* Show product grid when results are available */}
-        {result && (
-          <div className="mt-8">
-            <h2 className="text-xl font-semibold mb-4">Results for: "{originalPrompt}"</h2>
-            <ProductGrid 
-              products={result.data}
-              source={result.source}
-              prompt={originalPrompt}
-              fallback={result.fallback || result.googleFallback}
-            />
-          </div>
-        )}
-        
         {/* Debug panel in development mode */}
         {process.env.NODE_ENV === "development" && (
           <div className="mt-8">
@@ -195,21 +184,22 @@ export default function DashboardPage() {
             )}
           </div>
         )}
-      </div>
 
-      <div className="container mx-auto py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <div className="flex gap-2">
-            <DevModeToggle forceAI={forceAI} onToggle={setForceAI} />
-            {authSession?.user?.role === "admin" && (
-              <a 
-                href="/admin" 
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Admin Panel
-              </a>
-            )}
+        {/* Main Dashboard Content */}
+        <div className="mt-8">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <div className="flex gap-2">
+              <DevModeToggle forceAI={forceAI} onToggle={setForceAI} />
+              {authSession?.user?.role === "admin" && (
+                <a 
+                  href="/admin" 
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Admin Panel
+                </a>
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { MessagesArea } from "./messages-area";
 import { PromptInput } from "./prompt-input";
 import type { Message } from "~/types";
+import { type RoutedResult } from "~/agents/useIntentRouter";
 
 const formatTime = () => new Date().toLocaleTimeString(undefined, {
   hour: "2-digit",
@@ -33,9 +34,11 @@ const initialMessages: Message[] = [
 interface PromptInsightPanelProps {
   onPromptSubmit: (prompt: string) => Promise<void>;
   isLoading: boolean;
+  result?: RoutedResult | null;
+  originalPrompt?: string;
 }
 
-export function PromptInsightPanel({ onPromptSubmit, isLoading }: PromptInsightPanelProps) {
+export function PromptInsightPanel({ onPromptSubmit, isLoading, result, originalPrompt }: PromptInsightPanelProps) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
 
   // Set initial timestamp on client side only
@@ -62,15 +65,7 @@ export function PromptInsightPanel({ onPromptSubmit, isLoading }: PromptInsightP
     try {
       await onPromptSubmit(promptText);
       
-      // Add success message
-      const systemMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "system",
-        content: "Your prompt has been processed successfully!",
-        timestamp: formatTime(),
-      };
-
-      setMessages((prev) => [...prev, systemMessage]);
+      // Note: Success message and results are now handled in MessagesArea via the result prop
     } catch (error) {
       toast.error("Failed to process your prompt. Please try again.");
     }
@@ -108,7 +103,11 @@ export function PromptInsightPanel({ onPromptSubmit, isLoading }: PromptInsightP
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen">
-        <MessagesArea messages={messages} />
+        <MessagesArea 
+          messages={messages} 
+          result={result}
+          originalPrompt={originalPrompt}
+        />
         <PromptInput onSubmit={handleSubmit} isLoading={isLoading} />
       </div>
     </div>
