@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { type ScrapeTask } from "~/types";
+import { logScrapeTask, updateScrapeTask } from "~/lib/clientLogger";
 
 interface ScraperAgentState {
   isLoading: boolean;
@@ -10,7 +11,7 @@ interface ScraperAgentState {
 }
 
 interface UseScraperAgentResult extends ScraperAgentState {
-  fetchScrapedProducts: (tasks: ScrapeTask[], forceAI?: boolean) => Promise<any[]>;
+  fetchScrapedProducts: (tasks: ScrapeTask[], forceAI?: boolean, sessionId?: string) => Promise<any[]>;
 }
 
 export function useScraperAgent(): UseScraperAgentResult {
@@ -24,9 +25,37 @@ export function useScraperAgent(): UseScraperAgentResult {
    * Fetches scraped product data from the FastAPI backend
    * @param tasks Array of scrape tasks to send to the backend
    * @param forceAI Optional flag to force AI-generated products instead of scraping
+   * @param sessionId Optional session ID for logging scraper tasks
    * @returns Promise with the scraped product data
-   */  const fetchScrapedProducts = async (tasks: ScrapeTask[], forceAI?: boolean): Promise<any[]> => {
+   */  
+  const fetchScrapedProducts = async (tasks: ScrapeTask[], forceAI?: boolean, sessionId?: string): Promise<any[]> => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
+
+    // Log each scraping task
+    const loggedTasks: { task: ScrapeTask; taskId?: string }[] = [];
+    
+    if (sessionId) {
+      for (const task of tasks) {
+        try {
+          const logResult = await logScrapeTask({
+            productName: task.productName,
+            site: task.site || "unknown",
+            taskType: forceAI ? "ai-generation" : "scrape",
+            status: "pending",
+            sessionId: sessionId,
+          });
+          
+          if (logResult.success) {
+            loggedTasks.push({ task, taskId: logResult.task.taskId });
+          } else {
+            loggedTasks.push({ task });
+          }
+        } catch (error) {
+          console.error("Failed to log scrape task:", error);
+          loggedTasks.push({ task });
+        }
+      }
+    }
 
     try {
       console.log("Sending scrape request:", tasks, { forceAI });
@@ -97,10 +126,47 @@ export function useScraperAgent(): UseScraperAgentResult {
       }
       
       console.log("Extracted scraped data:", scrapedData);
+      
+      // Update logged tasks with success status
+      if (sessionId && loggedTasks.length > 0) {
+        for (const { task, taskId } of loggedTasks) {
+          if (taskId) {
+            try {
+              await updateScrapeTask(taskId, {
+                status: "scraped",
+                resultData: {
+                  productCount: scrapedData.length,
+                  success: true,
+                },
+              });
+            } catch (error) {
+              console.error("Failed to update scrape task:", error);
+            }
+          }
+        }
+      }
+      
       setState((prev) => ({ ...prev, isLoading: false, data: scrapedData }));
       return scrapedData;
     } catch (error: any) {
       const errorMessage = error.message || "Failed to fetch scraped products";
+      
+      // Update logged tasks with error status
+      if (sessionId && loggedTasks.length > 0) {
+        for (const { task, taskId } of loggedTasks) {
+          if (taskId) {
+            try {
+              await updateScrapeTask(taskId, {
+                status: "error",
+                errorMessage: errorMessage,
+              });
+            } catch (updateError) {
+              console.error("Failed to update scrape task with error:", updateError);
+            }
+          }
+        }
+      }
+      
       setState((prev) => ({ 
         ...prev, 
         isLoading: false, 

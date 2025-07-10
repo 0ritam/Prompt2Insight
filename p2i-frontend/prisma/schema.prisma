@@ -80,10 +80,32 @@ model PromptSession {
     updatedAt     DateTime @updatedAt
     
     user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    scrapeTasks   ScrapeTaskLog[]
     
     @@index([userId])
     @@index([createdAt])
     @@index([status])
+}
+
+model ScrapeTaskLog {
+    id            String   @id @default(cuid())
+    taskId        String   @unique @default(cuid())
+    productName   String
+    site          String
+    taskType      String   // "search" | "compare" | "scrape"
+    status        String   @default("pending") // "pending" | "scraped" | "error"
+    sessionId     String
+    resultData    String?  // JSON string of scraped data
+    errorMessage  String?
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+    
+    session       PromptSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+    
+    @@index([sessionId])
+    @@index([createdAt])
+    @@index([status])
+    @@index([site])
 }
 
 model VerificationToken {

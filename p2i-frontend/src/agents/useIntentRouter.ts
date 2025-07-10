@@ -25,7 +25,7 @@ interface IntentRouterState {
 }
 
 interface UseIntentRouterResult extends IntentRouterState {
-  routeUserIntent: (parsedPrompt: ParsedPrompt, originPrompt: string, forceAI?: boolean) => Promise<RoutedResult>;
+  routeUserIntent: (parsedPrompt: ParsedPrompt, originPrompt: string, forceAI?: boolean, sessionId?: string) => Promise<RoutedResult>;
 }
 
 export function useIntentRouter(): UseIntentRouterResult {
@@ -44,12 +44,14 @@ export function useIntentRouter(): UseIntentRouterResult {
    * @param parsedPrompt The parsed user prompt with intent and products
    * @param originPrompt The original user prompt text
    * @param forceAI Optional flag to force AI-generated products instead of scraping
+   * @param sessionId Optional session ID for logging scraper tasks
    * @returns Promise with the unified result
    */
   const routeUserIntent = async (
     parsedPrompt: ParsedPrompt, 
     originPrompt: string,
-    forceAI?: boolean
+    forceAI?: boolean,
+    sessionId?: string
   ): Promise<RoutedResult> => {
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
@@ -64,7 +66,7 @@ export function useIntentRouter(): UseIntentRouterResult {
       } else {
         try {
           console.log("Attempting to fetch scraped products...");
-          const scrapedProducts = await fetchScrapedProducts(scrapeTasks, false);
+          const scrapedProducts = await fetchScrapedProducts(scrapeTasks, false, sessionId);
           if (scrapedProducts && scrapedProducts.length > 0) {
             const result: RoutedResult = {
               source: "scraper",

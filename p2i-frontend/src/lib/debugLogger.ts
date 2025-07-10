@@ -1,12 +1,24 @@
 import { db } from "~/server/db";
 
 export type PromptSessionStatus = "pending" | "parsed" | "done" | "error";
+export type ScrapeTaskStatus = "pending" | "scraped" | "error";
 
 export interface PromptSessionData {
   sessionId: string;
   userId: string;
   originPrompt: string;
   status: PromptSessionStatus;
+  resultData?: any;
+  errorMessage?: string;
+}
+
+export interface ScrapeTaskData {
+  taskId?: string;
+  productName: string;
+  site: string;
+  taskType: string;
+  status: ScrapeTaskStatus;
+  sessionId: string;
   resultData?: any;
   errorMessage?: string;
 }
@@ -148,6 +160,123 @@ export async function getPromptSessionStats() {
     };
   } catch (error) {
     console.error("Failed to fetch prompt session stats:", error);
+    throw error;
+  }
+}
+
+/**
+ * Log a new scraper task to the database
+ * @param data The scraper task data to log
+ * @returns The created scraper task record
+ */
+export async function logScrapeTask(data: ScrapeTaskData) {
+  try {
+    const scrapeTask = await db.scrapeTaskLog.create({
+      data: {
+        taskId: data.taskId || undefined, // Will use default cuid() if not provided
+        productName: data.productName,
+        site: data.site,
+        taskType: data.taskType,
+        status: data.status,
+        sessionId: data.sessionId,
+        resultData: data.resultData ? JSON.stringify(data.resultData) : null,
+        errorMessage: data.errorMessage,
+      },
+    });
+
+    return scrapeTask;
+  } catch (error) {
+    console.error("Failed to log scrape task:", error);
+    throw error;
+  }
+}
+
+/**
+ * Update an existing scraper task status and results
+ * @param taskId The task ID to update
+ * @param updates The fields to update
+ * @returns The updated scraper task record
+ */
+export async function updateScrapeTask(
+  taskId: string,
+  updates: Partial<{
+    status: ScrapeTaskStatus;
+    resultData: any;
+    errorMessage: string;
+  }>
+) {
+  try {
+    const scrapeTask = await db.scrapeTaskLog.update({
+      where: { taskId },
+      data: {
+        ...updates,
+        resultData: updates.resultData ? JSON.stringify(updates.resultData) : undefined,
+        updatedAt: new Date(),
+      },
+    });
+
+    return scrapeTask;
+  } catch (error) {
+    console.error("Failed to update scrape task:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get all scraper tasks (admin only)
+ * @param limit Maximum number of tasks to return
+ * @returns Array of scraper tasks with session info
+ */
+export async function getAllScrapeTasks(limit: number = 100) {
+  try {
+    const tasks = await db.scrapeTaskLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: {
+        session: {
+          select: {
+            sessionId: true,
+            originPrompt: true,
+            user: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return tasks;
+  } catch (error) {
+    console.error("Failed to fetch all scraper tasks:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get scraper task statistics
+ * @returns Statistics object with counts and percentages
+ */
+export async function getScrapeTaskStats() {
+  try {
+    const [total, pending, scraped, error] = await Promise.all([
+      db.scrapeTaskLog.count(),
+      db.scrapeTaskLog.count({ where: { status: "pending" } }),
+      db.scrapeTaskLog.count({ where: { status: "scraped" } }),
+      db.scrapeTaskLog.count({ where: { status: "error" } }),
+    ]);
+
+    return {
+      total,
+      pending,
+      scraped,
+      error,
+      successRate: total > 0 ? ((scraped / total) * 100).toFixed(1) : "0",
+    };
+  } catch (error) {
+    console.error("Failed to fetch scraper task stats:", error);
     throw error;
   }
 }

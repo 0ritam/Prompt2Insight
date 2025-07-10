@@ -91,7 +91,7 @@ export default function DashboardPage() {
       // Use our intent router to get the right data source
       try {
         toast.info(`Processing ${parsedPrompt.intent} intent...`);
-        const routedResult = await routeUserIntent(parsedPrompt, prompt, forceAI);
+        const routedResult = await routeUserIntent(parsedPrompt, prompt, forceAI, sessionId);
         setResult(routedResult);
         
         // Update session with results

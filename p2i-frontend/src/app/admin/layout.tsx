@@ -23,7 +23,7 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col px-8 ">
       <NavHeader email={session.user.email} userRole={session.user.role} />
       <main className="container mx-auto flex-1 py-6">
         <div className="mb-6">

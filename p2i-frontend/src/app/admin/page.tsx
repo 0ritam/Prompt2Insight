@@ -16,13 +16,23 @@ interface User {
   emailVerified: string | null;
 }
 
+interface ScrapeTaskStats {
+  total: number;
+  pending: number;
+  scraped: number;
+  error: number;
+  successRate: string;
+}
+
 export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [scrapeStats, setScrapeStats] = useState<ScrapeTaskStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
+    fetchScrapeStats();
   }, []);
 
   const fetchUsers = async () => {
@@ -40,6 +50,20 @@ export default function AdminPage() {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchScrapeStats = async () => {
+    try {
+      const response = await fetch("/api/admin/scrape-tasks/stats");
+      
+      if (response.ok) {
+        const stats = await response.json();
+        setScrapeStats(stats);
+      }
+    } catch (err) {
+      console.error("Failed to fetch scrape stats:", err);
+      // Don't set error state for scrape stats since it's not critical
     }
   };
 
@@ -128,6 +152,57 @@ export default function AdminPage() {
         </Card>
       </div>
 
+      {/* Scraper Task Stats */}
+      {scrapeStats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Scrape Tasks</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{scrapeStats.total}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{scrapeStats.pending}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Scraped</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{scrapeStats.scraped}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Errors</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{scrapeStats.error}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{scrapeStats.successRate}%</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Link href="/admin/insights">
@@ -144,6 +219,20 @@ export default function AdminPage() {
           </Card>
         </Link>
 
+        <Link href="/admin/scraper-tasks">
+          <Card className="hover:bg-accent cursor-pointer transition-colors">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Scraper Tasks
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Monitor and analyze all scraping tasks across the platform
+              </p>
+            </CardHeader>
+          </Card>
+        </Link>
+
         <Card className="opacity-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -152,18 +241,6 @@ export default function AdminPage() {
             </CardTitle>
             <p className="text-sm text-muted-foreground">
               Configure system-wide settings and preferences
-            </p>
-          </CardHeader>
-        </Card>
-
-        <Card className="opacity-50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChart3 className="h-5 w-5" />
-              Analytics Dashboard
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              View comprehensive platform analytics and metrics
             </p>
           </CardHeader>
         </Card>
