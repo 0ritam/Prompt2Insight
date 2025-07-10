@@ -26,7 +26,6 @@ class ProductData:
     url: str
     image: str
     in_stock: str
-    specifications: Dict
 
 class FlipkartScraper:
     def __init__(self, headless: bool = True, max_products: int = 5):
@@ -223,7 +222,6 @@ class FlipkartScraper:
                                     "url": product_data.url,
                                     "image": product_data.image,
                                     "in_stock": product_data.in_stock,
-                                    "specifications": product_data.specifications or {},
                                     "method": "requests_search"
                                 })
                                 extracted_count += 1
@@ -320,8 +318,7 @@ class FlipkartScraper:
                 rating=rating,
                 url=url,
                 image=image,
-                in_stock=in_stock,
-                specifications={}
+                in_stock=in_stock
             )
             
         except Exception as e:
@@ -368,20 +365,6 @@ class FlipkartScraper:
                     image = elem.get('src')
                     break
             
-            # Get specifications
-            specifications = {}
-            spec_table = soup.select("._21lJbe")
-            for spec in spec_table:
-                try:
-                    key_elem = spec.select_one("._1hKmbr")
-                    value_elem = spec.select_one("._21lJbe ._21lJbe")
-                    if key_elem and value_elem:
-                        key = key_elem.get_text(strip=True)
-                        value = value_elem.get_text(strip=True)
-                        specifications[key] = value
-                except:
-                    continue
-            
             # Check availability
             in_stock = self.check_availability_requests(soup)
             
@@ -391,8 +374,7 @@ class FlipkartScraper:
                 rating=rating,
                 url=url,
                 image=image,
-                in_stock=in_stock,
-                specifications=specifications
+                in_stock=in_stock
             )
             
         except Exception as e:
@@ -447,7 +429,6 @@ class FlipkartScraper:
                         "url": product_data.url,
                         "image": product_data.image,
                         "in_stock": product_data.in_stock,
-                        "specifications": product_data.specifications or {},
                         "method": "requests_direct"
                     })
             except Exception as e:
@@ -709,7 +690,6 @@ class FlipkartScraper:
                                 "url": url,
                                 "image": image,
                                 "in_stock": "Unknown",
-                                "specifications": {},
                                 "method": "fallback_extraction"
                             })
                             
@@ -749,7 +729,6 @@ class FlipkartScraper:
                         "url": "https://www.flipkart.com/product-example-1",
                         "image": "",
                         "in_stock": "Unknown",
-                        "specifications": {},
                         "method": "fallback_blocked"
                     },
                     {
@@ -759,7 +738,6 @@ class FlipkartScraper:
                         "url": "https://www.flipkart.com/product-example-2",
                         "image": "",
                         "in_stock": "Unknown",
-                        "specifications": {},
                         "method": "fallback_blocked"
                     }
                 ]
@@ -772,7 +750,6 @@ class FlipkartScraper:
                         "url": "https://www.flipkart.com/product-example-3",
                         "image": "",
                         "in_stock": "Unknown",
-                        "specifications": {},
                         "method": "fallback_blocked"
                     }
                 ]
@@ -785,8 +762,7 @@ class FlipkartScraper:
                         "rating": "4.0",
                         "url": "https://www.flipkart.com/product-example-generic",
                         "image": "",
-                        "in_stock": "Unknown", 
-                        "specifications": {},
+                        "in_stock": "Unknown",
                         "method": "fallback_blocked"
                     }
                 ]

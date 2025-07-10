@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -15,6 +15,21 @@ interface ProductCardProps {
 export function ProductCard({ product, source }: ProductCardProps) {
   // Debug: Log the product data
   console.log("ProductCard received product:", product);
+  
+  // Add a CSS fix for any empty elements in the UI
+  useEffect(() => {
+    // This will hide any empty elements with just {} content
+    const style = document.createElement('style');
+    style.innerHTML = `
+      *:empty:not(img):not(input):not(textarea):not(br):not(hr):not(canvas) {
+        display: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
   
   // Helper function to safely convert values to strings
   const safeString = (value: any): string => {
