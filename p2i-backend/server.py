@@ -26,11 +26,14 @@ sys.path.insert(0, str(scraper_dir))
 # Import the FastAPI app from flipkart_api
 try:
     from flipkart_api import app
-    print("✅ Successfully imported flipkart_api")
+    from app.api.v1.router import api_router
+    print("✅ Successfully imported flipkart_api and api_router")
 except ImportError as e:
     print(f"❌ Failed to import flipkart_api: {e}")
     print(f"Make sure you're in the correct directory and dependencies are installed")
     sys.exit(1)
+
+app.include_router(api_router, prefix="/api/v1")
 
 if __name__ == "__main__":
     print("🚀 Starting Prompt2Insight Backend Server...")
