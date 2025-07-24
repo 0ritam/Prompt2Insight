@@ -18,9 +18,21 @@ def _sanitize_collection_name(name: str) -> str:
     - Replaces spaces with underscores.
     - Removes characters other than alphanumerics, hyphens, and underscores.
     - Converts to lowercase.
+    - Ensures name starts and ends with alphanumeric characters.
     """
     name = name.lower().replace(' ', '_')
     name = re.sub(r'[^a-z0-9_-]', '', name)
+    # Remove leading/trailing underscores and hyphens
+    name = name.strip('_-')
+    # Ensure the name starts with alphanumeric if it doesn't
+    if name and not name[0].isalnum():
+        name = 'product_' + name
+    # Ensure the name ends with alphanumeric if it doesn't  
+    if name and not name[-1].isalnum():
+        name = name.rstrip('_-') + '_data'
+    # Ensure minimum length of 3 characters
+    if len(name) < 3:
+        name = 'product_data'
     # Ensure the name is between 3 and 63 characters
     return name[:63]
 
@@ -57,23 +69,23 @@ def run_rag_query(product_name: str, question: str) -> str:
     except Exception:
         print(f"Collection '{collection_name}' not found. Building new collection...")
         
-        # Scrape documents from news and YouTube
-        print("Scraping Google News...")
-        news_docs = data_scraper.scrape_google_news(product_name)
-        print(f"Found {len(news_docs)} news articles.")
+        # Use the new primary document collection method (RSS + fallback)
+        documents = data_scraper.get_documents(product_name)
         
+        # Also try to get YouTube transcripts as supplementary content
         print("Scraping YouTube reviews...")
         youtube_docs = data_scraper.scrape_youtube_reviews(product_name)
         print(f"Found {len(youtube_docs)} YouTube transcripts.")
         
-        documents = news_docs + youtube_docs
+        # Combine all documents
+        all_documents = documents + youtube_docs
         
-        if not documents:
+        if not all_documents:
             return "I'm sorry, but I couldn't find enough information about this product to answer your question."
             
         # Build the vector store with the new documents
         print("Building vector store...")
-        vector_service.build_vector_store(collection_name, documents)
+        vector_service.build_vector_store(collection_name, all_documents)
         print("Vector store built successfully.")
 
     # 4. Get the retriever for the product's collection
