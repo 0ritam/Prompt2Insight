@@ -7,3 +7,18 @@ beautifulsoup4>=4.12.0
 lxml>=4.9.0
 requests>=2.31.0
 pydantic>=2.5.0
+
+# LangChain and AI Dependencies
+langchain>=0.1.0
+langchain-google-genai>=1.0.0
+
+# Vector Database
+chromadb>=0.4.0
+
+# Content Extraction and Processing
+trafilatura>=1.6.0
+feedparser>=6.0.0
+
+# News and Media Processing
+gnews>=0.3.0
+youtube-transcript-api>=0.6.0
