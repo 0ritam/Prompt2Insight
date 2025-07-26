@@ -108,14 +108,13 @@ class FlipkartScraper:
             with open("scraper_config.json", "r") as f:
                 return json.load(f)
         except FileNotFoundError:
-            # Updated configuration with current Flipkart selectors (as of 2025)
+            # Default configuration if file is not found
             return {
                 "selectors": {
-                    # Based on actual DOM inspection from Flipkart 2025
-                    "product_container": "div[data-id^='COM'], div[data-id^='LAPTOP'], div[data-id^='COMPUTER'], div[data-id]",
-                    "title": ".KzDlHZ, .WKTcLC, .IRpwTa, .s1Q9rs, ._4rR01T, .B_NuCI, .wjcEIp",
-                    "price": ".Nx9bqj.CxhGGd, .Nx9bqj, ._30jeq3, ._1_WHN1, ._4b5DiR, .WMfIhL, ._1vC4OE",
-                    "rating": "._3LWZlK, .XQDdHH, ._2_R_DZ, .Y1HWO0, ._13vcmD, ._3k-BhJ",
+                    "product_container": "[data-id], ._1AtVbE, ._4rR01T, ._2kHMtA, ._13oc-S",
+                    "title": "._4rR01T, .s1Q9rs, .B_NuCI",
+                    "price": "._30jeq3, ._1_WHN1",
+                    "rating": "._3LWZlK",
                     "url": "a",
                     "image": "img"
                 },
@@ -147,29 +146,11 @@ class FlipkartScraper:
                 
             print(f"✅ Found {len(elements)} potential product elements")
             
-            # Debug: show what we found
-            for i, element in enumerate(elements[:3]):  # Show first 3 elements
-                try:
-                    element_text = element.text[:100] if element.text else "No text"
-                    data_id = element.get_attribute("data-id") or "No data-id"
-                    print(f"   📋 Element {i+1}: data-id='{data_id}', text='{element_text}...'")
-                except:
-                    print(f"   📋 Element {i+1}: Could not get details")
-            
-            if len(elements) > 3:
-                print(f"   ... and {len(elements) - 3} more elements")
-            
             # Extract data from each element
             for i, element in enumerate(elements[:self.max_products]):
                 try:
-                    print(f"   🔍 Processing element {i+1}/{min(len(elements), self.max_products)}...")
                     product_data = self._extract_product_data(element)
-                    print(f"   📝 Product {i+1} extracted: title='{product_data.title[:30] if len(product_data.title) > 30 else product_data.title}', price='{product_data.price}'")
-                    
-                    is_valid = self._is_valid_product(product_data)
-                    print(f"   🔍 Validation result for product {i+1}: {is_valid}")
-                    
-                    if is_valid:
+                    if self._is_valid_product(product_data):
                         products.append({
                             "title": product_data.title,
                             "price": product_data.price,
@@ -179,13 +160,9 @@ class FlipkartScraper:
                             "in_stock": product_data.in_stock,
                             "method": "selenium_search"
                         })
-                        print(f"   ✅ Product {i+1} ADDED: {product_data.title[:50] if len(product_data.title) > 50 else product_data.title}")
-                    else:
-                        print(f"   ❌ Product {i+1} REJECTED by validation")
+                        print(f"   ✅ Product {i+1}: {product_data.title[:50]}...")
                 except Exception as e:
                     print(f"   ❌ Failed to extract product {i+1}: {e}")
-                    import traceback
-                    traceback.print_exc()
                     continue
 
         except TimeoutException:
@@ -209,90 +186,8 @@ class FlipkartScraper:
 
     def _get_product_elements(self):
         """Find all product elements on the page"""
-        # Try multiple approaches to find product containers
-        product_elements = []
-        
-        # Approach 1: Look for specific product container patterns
-        selectors_to_try = [
-            "div[data-id^='COM']",  # Product containers with COM prefix (computers)
-            "div[data-id^='LAPTOP']",  # Direct laptop data-ids
-            "div[data-id^='COMPUTER']",  # Computer data-ids
-            "div[data-id]",  # Any element with data-id
-            "div.cPHDOP.col-12-12[style*='padding']",
-            "div._4ddWXP"
-        ]
-        
-        for selector in selectors_to_try:
-            try:
-                elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                if elements:
-                    print(f"   🎯 Found {len(elements)} elements with selector: {selector}")
-                    # Filter these elements
-                    filtered = self._filter_product_elements(elements)
-                    if filtered:
-                        product_elements.extend(filtered)
-                        break  # Use the first successful selector
-            except Exception as e:
-                print(f"   ❌ Selector {selector} failed: {e}")
-                continue
-        
-        # If no specific selectors worked, try a broader approach
-        if not product_elements:
-            print("   🔄 Trying broader selector approach...")
-            all_elements = self.driver.find_elements(By.CSS_SELECTOR, "div")
-            product_elements = self._filter_product_elements(all_elements)
-        
-        print(f"   📦 Final result: {len(product_elements)} actual product elements")
-        return product_elements[:10]  # Limit to avoid too many results
-
-    def _filter_product_elements(self, elements):
-        """Filter elements to get only actual product elements"""
-        product_elements = []
-        for element in elements:
-            try:
-                element_text = element.text.lower()
-                
-                # Must have price indicator
-                has_price_indicator = '₹' in element_text
-                if not has_price_indicator:
-                    continue
-                
-                # Look for specific laptop/computer product terms
-                laptop_terms = ['laptop', 'intel', 'amd', 'ryzen', 'core i', 'processor', 'gb ram', 'ssd', 'hdd', 
-                              'windows', 'display', 'inch', 'screen']
-                brand_terms = ['asus', 'hp', 'dell', 'lenovo', 'acer', 'infinix', 'macbook', 'apple', 'msi', 
-                             'vivobook', 'ideapad', 'thinkpad', 'zerobook']
-                
-                has_laptop_terms = any(term in element_text for term in laptop_terms)
-                has_brand_terms = any(brand in element_text for brand in brand_terms)
-                
-                # Must have either laptop terms or brand terms
-                if not (has_laptop_terms or has_brand_terms):
-                    continue
-                
-                # Strong exclusions for non-product elements
-                exclude_terms = ['reviews for popular', 'sponsored', 'advertisement', 'compare products',
-                               'sort by', 'filter', 'home', 'categories', 'show more', 'view all']
-                
-                is_excluded = any(term in element_text for term in exclude_terms)
-                if is_excluded:
-                    continue
-                
-                # Additional checks for product validity
-                has_sufficient_content = len(element_text) > 40
-                has_links = len(element.find_elements(By.TAG_NAME, "a")) > 0
-                
-                # Check if it has data-id (strong indicator of product)
-                data_id = element.get_attribute("data-id")
-                has_product_data_id = data_id and (data_id.startswith('COM') or 'LAPTOP' in data_id or 'COMPUTER' in data_id)
-                
-                if (has_sufficient_content and has_links) or has_product_data_id:
-                    product_elements.append(element)
-                    
-            except Exception:
-                continue
-                
-        return product_elements
+        product_container_selector = self.config["selectors"]["product_container"]
+        return self.driver.find_elements(By.CSS_SELECTOR, product_container_selector)
 
     def _extract_product_data(self, element) -> Optional[ProductData]:
         """Extract product data from a Selenium WebElement"""
@@ -313,132 +208,28 @@ class FlipkartScraper:
 
     def _extract_title(self, element) -> str:
         """Extract product title from element"""
-        # Try current selectors first
         title_selectors = self.config["selectors"]["title"].split(", ")
         for selector in title_selectors:
             try:
                 title_elem = element.find_element(By.CSS_SELECTOR, selector.strip())
                 title = title_elem.text.strip()
                 if title and len(title) > 3:
-                    print(f"         📝 Found title with selector '{selector}': {title[:50]}...")
                     return title
             except NoSuchElementException:
                 continue
-        
-        # Try additional common Flipkart selectors
-        additional_selectors = [
-            "div._4rR01T",  # Common product title class
-            "a.IRpwTa",     # Link with product title
-            "a.s1Q9rs",     # Another title link class
-            "div.col-7-12 a",  # Title in product column
-            "h3 a",         # H3 with link
-            "h4 a",         # H4 with link
-            ".wjcEIp",      # Another title class
-            "div[data-id] a", # Any link in product container
-        ]
-        
-        for selector in additional_selectors:
-            try:
-                title_elem = element.find_element(By.CSS_SELECTOR, selector)
-                title = title_elem.text.strip()
-                if title and len(title) > 5:
-                    print(f"         📝 Found title with additional selector '{selector}': {title[:50]}...")
-                    return title
-            except NoSuchElementException:
-                continue
-        
-        # Fallback: try to get title from any text content or link title attribute
-        try:
-            # Try getting from link title attribute first
-            links = element.find_elements(By.TAG_NAME, "a")
-            for link in links:
-                title_attr = link.get_attribute("title")
-                if title_attr and len(title_attr) > 5:
-                    print(f"         📝 Found title from link attribute: {title_attr[:50]}...")
-                    return title_attr.strip()
-                
-                # Try link text
-                link_text = link.text.strip()
-                if link_text and len(link_text) > 5 and not '₹' in link_text:
-                    print(f"         📝 Found title from link text: {link_text[:50]}...")
-                    return link_text
-        except:
-            pass
-            
-        # Final fallback: get any meaningful text
-        try:
-            text_content = element.text.strip()
-            if text_content and len(text_content) > 10:
-                # Take first line that looks like a title
-                lines = text_content.split('\n')
-                for line in lines:
-                    line = line.strip()
-                    if len(line) > 8 and not '₹' in line and not line.isdigit() and not line.lower() in ['free delivery', 'sold by', 'flipkart assured']:
-                        print(f"         📝 Found title from text content: {line[:50]}...")
-                        return line
-        except:
-            pass
-            
-        print(f"         ❌ No title found for element")
         return "N/A"
 
     def _extract_price(self, element) -> str:
         """Extract product price from element"""
-        # Try current selectors first
         price_selectors = self.config["selectors"]["price"].split(", ")
         for selector in price_selectors:
             try:
                 price_elem = element.find_element(By.CSS_SELECTOR, selector.strip())
                 price = price_elem.text.strip()
                 if price and '₹' in price:
-                    print(f"         💰 Found price with selector '{selector}': {price}")
                     return price
             except NoSuchElementException:
                 continue
-        
-        # Try additional common price selectors
-        additional_price_selectors = [
-            "div._30jeq3",    # Common price class
-            "div._1_WHN1",    # Another price class
-            "span.Nx9bqj",    # Price span
-            "div.WMfIhL",     # Price div
-            "span._1vC4OE",   # Another price span
-            "div[data-id] span", # Any span in product container
-            "div[data-id] div", # Any div in product container
-        ]
-        
-        for selector in additional_price_selectors:
-            try:
-                price_elem = element.find_element(By.CSS_SELECTOR, selector)
-                price = price_elem.text.strip()
-                if price and '₹' in price:
-                    print(f"         💰 Found price with additional selector '{selector}': {price}")
-                    return price
-            except NoSuchElementException:
-                continue
-        
-        # Fallback: search for any text containing ₹
-        try:
-            text_content = element.text
-            if '₹' in text_content:
-                # Extract price using regex
-                import re
-                price_patterns = [
-                    r'₹[\d,]+',           # Basic rupee pattern
-                    r'₹\s*[\d,]+',        # With optional space
-                    r'₹[\d,]+\.?\d*',     # With optional decimals
-                ]
-                
-                for pattern in price_patterns:
-                    price_match = re.search(pattern, text_content)
-                    if price_match:
-                        price = price_match.group(0)
-                        print(f"         💰 Found price with regex '{pattern}': {price}")
-                        return price
-        except:
-            pass
-            
-        print(f"         ❌ No price found for element")
         return "N/A"
 
     def _extract_rating(self, element) -> str:
@@ -484,33 +275,12 @@ class FlipkartScraper:
 
     def _is_valid_product(self, product_data: ProductData) -> bool:
         """Check if the extracted product data is valid"""
-        has_title = product_data.title != "N/A" and len(product_data.title) > 3
-        has_price = product_data.price != "N/A"
-        
-        # Basic validation - just ensure we have meaningful title and price
-        is_real_product = True
-        
-        # Only exclude obvious non-products
-        exclude_exact_terms = ['computers', 'laptops category', 'mobiles category', 'electronics category', 
-                              'accessories category', 'home category', 'furniture category', 'sort by', 
-                              'filter', 'show more', 'view all', 'sponsored']
-        if product_data.title.lower().strip() in exclude_exact_terms:
-            is_real_product = False
-        
-        # Exclude very short titles that are likely navigation elements
-        if has_title and len(product_data.title) < 8:
-            is_real_product = False
-            
-        # Check for obvious navigation/filter elements
-        if has_title:
-            title_lower = product_data.title.lower()
-            navigation_keywords = ['sort by', 'filter by', 'show more', 'view all', 'home', 'categories']
-            if any(keyword in title_lower for keyword in navigation_keywords):
-                is_real_product = False
-            
-        print(f"      🔍 Validation: title='{product_data.title}' (valid: {has_title}), price='{product_data.price}' (valid: {has_price}), real_product: {is_real_product}")
-        
-        return has_title and has_price and is_real_product
+        return (
+            product_data.title != "N/A" and
+            len(product_data.title) > 5 and
+            product_data.price != "N/A" and
+            '₹' in product_data.price
+        )
 
     def scrape_for_microservice(self, query: str, filters: Dict = None) -> Dict:
         """Microservice-ready method using Selenium"""

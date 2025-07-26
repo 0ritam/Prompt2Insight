@@ -3,6 +3,7 @@ beautifulsoup4>=4.12.0
 selenium>=4.15.0
 webdriver-manager>=4.0.0
 googlesearch-python>=1.2.3
+undetected-chromedriver>=3.5.0
 
 # FastAPI microservice dependencies
 fastapi>=0.104.0
@@ -11,7 +12,9 @@ pydantic>=2.5.0
 
 # Performance and async
 aiohttp>=3.9.0
-asyncio
 
 # Data handling
 dataclasses-json>=0.6.0
+
+# Python compatibility
+setuptools>=65.0.0  # For distutils compatibility

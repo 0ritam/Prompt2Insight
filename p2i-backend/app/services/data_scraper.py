@@ -5,11 +5,120 @@ from youtube_transcript_api import YouTubeTranscriptApi
 import trafilatura
 import feedparser
 from typing import List
+import os
+import random
 
 class DataScraper:
     """
     A class to scrape data from Google News, YouTube reviews, and RSS feeds.
     """
+
+    def __init__(self):
+        """Initialize the DataScraper with static user agent rotation."""
+        # Static list of user agents to avoid async/event loop issues
+        self.user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0'
+        ]
+
+    def get_random_user_agent(self):
+        """Get a random user agent from the static list."""
+        return random.choice(self.user_agents)
+
+    def _fetch_article_with_ua(self, url: str) -> str:
+        """
+        Smart scraper helper function that downloads and extracts content from a single URL
+        while pretending to be a real browser using static User-Agent rotation.
+        
+        Args:
+            url: The URL to fetch and extract content from.
+            
+        Returns:
+            Extracted article text or None if failed.
+        """
+        try:
+            # Get a random user agent from our static list
+            user_agent = self.get_random_user_agent()
+            headers = {'User-Agent': user_agent}
+            
+            # Use requests to get the content with headers and timeout
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
+            
+            # If download successful, use trafilatura to extract main article content
+            extracted_text = trafilatura.extract(response.text)
+            
+            if extracted_text and len(extracted_text.strip()) > 100:
+                print(f"   ✅ Successfully extracted content from {url} ({len(extracted_text)} chars)")
+                return extracted_text
+            else:
+                print(f"   ⚠️ No meaningful content extracted from {url}")
+                return None
+                
+        except Exception as e:
+            print(f"   ❌ Error fetching article from {url}: {e}")
+            return None
+
+    def _find_review_urls(self, product_name: str, num_results: int = 5) -> List[str]:
+        """
+        Source finder helper function that uses Serper.dev API to find the best article URLs.
+        
+        Args:
+            product_name: The name of the product to search for.
+            num_results: Number of search results to return.
+            
+        Returns:
+            List of URLs from organic search results.
+        """
+        try:
+            # Get SERPER_API_KEY from environment variables
+            serper_api_key = os.getenv("SERPER_API_KEY")
+            
+            if not serper_api_key:
+                print("⚠️ SERPER_API_KEY not found in environment variables")
+                return []
+            
+            # Define the Serper API endpoint
+            search_url = "https://google.serper.dev/search"
+            
+            # Create targeted search query payload
+            payload = {
+                "q": f"in-depth review for {product_name}",
+                "num": num_results
+            }
+            
+            # Define necessary headers including X-API-KEY
+            headers = {
+                "X-API-KEY": serper_api_key,
+                "Content-Type": "application/json"
+            }
+            
+            print(f"🔍 Searching Serper.dev for: {payload['q']}")
+            
+            # Make POST request to search_url
+            response = requests.post(search_url, json=payload, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            # Parse JSON response and extract URLs from organic search results
+            data = response.json()
+            urls = []
+            
+            organic_results = data.get("organic", [])
+            for result in organic_results:
+                link = result.get("link")
+                if link:
+                    urls.append(link)
+                    print(f"   📰 Found: {result.get('title', 'No title')} - {link}")
+            
+            print(f"🎯 Serper.dev found {len(urls)} review URLs")
+            return urls
+            
+        except Exception as e:
+            print(f"❌ Error with Serper.dev API search: {e}")
+            return []
 
     def scrape_from_rss(self, product_name: str) -> List[str]:
         """
@@ -207,8 +316,11 @@ class DataScraper:
 
     def get_documents(self, product_name: str) -> List[str]:
         """
-        Primary method to get documents about a product. 
-        First tries RSS feeds, falls back to Google News if needed.
+        Primary method to get documents about a product using advanced multi-layered strategy.
+        1st: Dynamic search-and-scrape using Serper.dev API + Smart Scraper
+        2nd: RSS feeds fallback
+        3rd: Google News fallback  
+        4th: Google Search API fallback
 
         Args:
             product_name: The name of the product to search for.
@@ -216,17 +328,55 @@ class DataScraper:
         Returns:
             A list of strings, where each string is the text content of an article.
         """
-        print(f"🚀 Starting document collection for: {product_name}")
+        print(f"🚀 Starting advanced document collection for: {product_name}")
         
-        # First, try RSS feeds
+        # PRIMARY METHOD: Dynamic search-and-scrape using Serper.dev API
+        print("🎯 Phase 1: Dynamic search-and-scrape with Serper.dev API...")
+        review_urls = self._find_review_urls(product_name)
+        
+        documents = []
+        if review_urls:
+            print(f"📄 Found {len(review_urls)} review URLs, extracting content...")
+            
+            for i, url in enumerate(review_urls, 1):
+                print(f"📰 [{i}/{len(review_urls)}] Processing: {url}")
+                content = self._fetch_article_with_ua(url)
+                
+                if content:
+                    # Add source information for tracking
+                    enhanced_content = f"[Source: Serper.dev Search - Dynamic Scraper]\n\n{content}"
+                    documents.append(enhanced_content)
+            
+            if documents:
+                print(f"✅ Dynamic search-and-scrape successful! Found {len(documents)} high-quality documents")
+                return documents
+        
+        # FALLBACK 1: RSS feeds
+        print("📡 Dynamic search and scrape failed, falling back to RSS feeds...")
         documents = self.scrape_from_rss(product_name)
         
         if documents:
             print(f"✅ RSS scraping successful! Found {len(documents)} documents")
             return documents
-        else:
-            print("📰 RSS scraping yielded no results, falling back to Google News...")
-            return self.scrape_google_news(product_name)
+        
+        # FALLBACK 2: Google News
+        print("📰 RSS scraping yielded no results, falling back to Google News...")
+        documents = self.scrape_google_news(product_name)
+        
+        if documents:
+            print(f"✅ Google News successful! Found {len(documents)} documents")
+            return documents
+        
+        # FALLBACK 3: Google Search API (final fallback)
+        print("🔍 Google News failed, trying Google Search API as final fallback...")
+        documents = self.scrape_google_search_api(product_name)
+        
+        if documents:
+            print(f"✅ Google Search API successful! Found {len(documents)} documents")
+            return documents
+        
+        print("❌ All scraping methods failed - no documents found")
+        return []
 
     def scrape_google_news(self, product_name: str, limit: int = 3) -> List[str]:
         """
@@ -241,81 +391,113 @@ class DataScraper:
         """
         article_texts = []
         try:
-            google_news = GNews()
-            google_news.language = 'en'
-            google_news.country = 'us'
+            print(f"🔍 Attempting to search for news articles about: {product_name}")
             
-            # Get articles without any keyword arguments to avoid API issues
-            print(f"Searching for news articles about: {product_name}")
-            articles = google_news.get_news(product_name)
+            # Direct HTTP request to Google News to avoid GNews library event loop issues
+            search_url = f"https://news.google.com/rss/search?q={product_name}&hl=en-US&gl=US&ceid=US:en"
             
-            # Limit the results manually
-            if articles:
-                articles = articles[:limit]
-                print(f"Found {len(articles)} articles to process")
+            try:
+                # Use requests instead of GNews to avoid event loop issues
+                response = requests.get(search_url, timeout=10)
+                if response.status_code == 200:
+                    # Parse the RSS feed
+                    feed = feedparser.parse(response.text)
+                    
+                    if feed.entries:
+                        articles = feed.entries[:limit]
+                        print(f"Found {len(articles)} articles to process")
+                        
+                        for i, article in enumerate(articles):
+                            try:
+                                title = article.get('title', 'No title')
+                                link = article.get('link', '')
+                                print(f"Processing article {i+1}: {title}")
+                                
+                                if not link:
+                                    continue
+                                
+                                # Try to get full article content using trafilatura
+                                try:
+                                    downloaded = trafilatura.fetch_url(link)
+                                    if downloaded:
+                                        # Extract content with trafilatura
+                                        article_text = trafilatura.extract(
+                                            downloaded, 
+                                            include_comments=False,
+                                            include_tables=True,
+                                            include_formatting=False,
+                                            favor_precision=False  # Favor recall over precision
+                                        )
+                                        if article_text and article_text.strip() and len(article_text.strip()) > 100:
+                                            article_texts.append(article_text)
+                                            print(f"✅ Successfully extracted full article {i+1} using trafilatura ({len(article_text)} chars)")
+                                            continue
+                                        else:
+                                            print(f"⚠️ Trafilatura extracted minimal content for article {i+1}")
+                                except Exception as trafilatura_error:
+                                    print(f"❌ Trafilatura extraction failed for article {i+1}: {trafilatura_error}")
+                                
+                                # Fallback: use metadata from the RSS feed
+                                fallback_content = []
+                                if title:
+                                    fallback_content.append(f"Title: {title}")
+                                if article.get('summary'):
+                                    fallback_content.append(f"Description: {article.get('summary')}")
+                                if article.get('published'):
+                                    fallback_content.append(f"Published: {article.get('published')}")
+                                
+                                if fallback_content:
+                                    article_text = ' '.join(fallback_content)
+                                    article_texts.append(article_text)
+                                    print(f"📄 Using article metadata for article {i+1} ({len(article_text)} chars)")
+                                else:
+                                    print(f"❌ Could not extract any content for article {i+1}")
+                                
+                            except Exception as article_error:
+                                print(f"Error processing individual article {i+1}: {article_error}")
+                                continue
+                    else:
+                        print("No articles found in the RSS feed")
+                else:
+                    print(f"❌ Failed to fetch news: HTTP status {response.status_code}")
+            
+            except Exception as request_error:
+                print(f"❌ Error fetching Google News RSS: {request_error}")
                 
-                for i, article in enumerate(articles):
-                    try:
-                        print(f"Processing article {i+1}: {article.get('title', 'No title')}")
+                # Legacy method fallback using GNews only if the RSS method failed
+                try:
+                    # Only import GNews here if needed to avoid event loop issues
+                    from gnews import GNews
+                    print("⚠️ Falling back to GNews library (potential event loop issues)")
+                    
+                    google_news = GNews()
+                    google_news.language = 'en'
+                    google_news.country = 'us'
+                    
+                    # Only use the simplest method from GNews to reduce chances of event loop issues
+                    articles = google_news.get_news(product_name)
+                    
+                    if articles:
+                        articles = articles[:limit]
+                        print(f"Found {len(articles)} articles using GNews fallback")
                         
-                        # Try to get full article content using trafilatura
-                        try:
-                            downloaded = trafilatura.fetch_url(article['url'])
-                            if downloaded:
-                                # More aggressive extraction with additional options
-                                article_text = trafilatura.extract(
-                                    downloaded, 
-                                    include_comments=False,
-                                    include_tables=True,
-                                    include_formatting=False,
-                                    favor_precision=False  # Favor recall over precision
-                                )
-                                if article_text and article_text.strip() and len(article_text.strip()) > 100:
-                                    article_texts.append(article_text)
-                                    print(f"✅ Successfully extracted full article {i+1} using trafilatura ({len(article_text)} chars)")
-                                    continue
-                                else:
-                                    print(f"⚠️ Trafilatura extracted minimal content for article {i+1} ({len(article_text) if article_text else 0} chars)")
-                        except Exception as trafilatura_error:
-                            print(f"❌ Trafilatura extraction failed for article {i+1}: {trafilatura_error}")
-                        
-                        # Fallback: try gnews get_full_article method
-                        try:
-                            full_article = google_news.get_full_article(article['url'])
-                            if full_article and hasattr(full_article, 'html') and full_article.html:
-                                soup = BeautifulSoup(full_article.html, 'html.parser')
-                                paragraphs = soup.find_all('p')
-                                article_text = ' '.join([p.get_text(strip=True) for p in paragraphs])
-                                if article_text.strip() and len(article_text.strip()) > 100:
-                                    article_texts.append(article_text)
-                                    print(f"✅ Successfully extracted full article {i+1} using gnews fallback ({len(article_text)} chars)")
-                                    continue
-                                else:
-                                    print(f"⚠️ GNews extracted minimal content for article {i+1}")
-                        except Exception as gnews_error:
-                            print(f"❌ GNews extraction failed for article {i+1}: {gnews_error}")
-                        
-                        # Final fallback: use available article metadata (title, description, etc.)
-                        fallback_content = []
-                        if article.get('title'):
-                            fallback_content.append(f"Title: {article['title']}")
-                        if article.get('description'):
-                            fallback_content.append(f"Description: {article['description']}")
-                        if article.get('published date'):
-                            fallback_content.append(f"Published: {article['published date']}")
-                        
-                        if fallback_content:
-                            article_text = ' '.join(fallback_content)
-                            article_texts.append(article_text)
-                            print(f"📄 Using article metadata for article {i+1} ({len(article_text)} chars)")
-                        else:
-                            print(f"❌ Could not extract any content for article {i+1}")
+                        for i, article in enumerate(articles):
+                            # Just use the metadata without trying to fetch full content
+                            fallback_content = []
+                            if article.get('title'):
+                                fallback_content.append(f"Title: {article['title']}")
+                            if article.get('description'):
+                                fallback_content.append(f"Description: {article['description']}")
+                            if article.get('published date'):
+                                fallback_content.append(f"Published: {article['published date']}")
                             
-                    except Exception as article_error:
-                        print(f"Error processing individual article {i+1}: {article_error}")
-                        continue
-            else:
-                print("No articles found for this search term")
+                            if fallback_content:
+                                article_text = ' '.join(fallback_content)
+                                article_texts.append(article_text)
+                                print(f"📄 Using article metadata only for article {i+1}")
+                    
+                except Exception as gnews_error:
+                    print(f"❌ GNews fallback also failed: {gnews_error}")
 
         except Exception as e:
             print(f"An error occurred while scraping Google News: {e}")
@@ -372,6 +554,124 @@ class DataScraper:
             print(f"An error occurred while scraping YouTube transcripts: {e}")
             
         return transcript_texts
+
+    def scrape_google_search_api(self, product_name: str, max_results: int = 5) -> List[str]:
+        """
+        Uses Google Custom Search API to find product information as final fallback.
+        
+        Args:
+            product_name: The name of the product to search for.
+            max_results: Maximum number of results to process.
+            
+        Returns:
+            A list of strings containing extracted content from search results.
+        """
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+            import trafilatura
+            
+            # Get API credentials
+            api_key = os.getenv("GOOGLE_CSE_API_KEY")
+            search_engine_id = os.getenv("GOOGLE_CSE_ENGINE_ID")
+            
+            if not api_key or not search_engine_id:
+                print("❌ Google Search API credentials not found in environment variables")
+                return []
+            
+            # Search for product reviews and information
+            search_queries = [
+                f"{product_name} review",
+                f"{product_name} problems issues",
+                f"{product_name} user experience"
+            ]
+            
+            all_documents = []
+            
+            for query in search_queries:
+                try:
+                    print(f"🔍 Searching Google for: {query}")
+                    
+                    # Call Google Custom Search API
+                    params = {
+                        "key": api_key,
+                        "cx": search_engine_id,
+                        "q": query,
+                        "num": min(max_results, 10),  # Google API max is 10
+                        "safe": "medium",
+                        "lr": "lang_en"
+                    }
+                    
+                    response = requests.get(
+                        "https://www.googleapis.com/customsearch/v1", 
+                        params=params, 
+                        timeout=10
+                    )
+                    
+                    if response.status_code != 200:
+                        print(f"❌ Google API error: {response.status_code}")
+                        continue
+                    
+                    data = response.json()
+                    items = data.get("items", [])
+                    
+                    print(f"📄 Found {len(items)} search results for '{query}'")
+                    
+                    for item in items:
+                        try:
+                            url = item.get("link", "")
+                            title = item.get("title", "")
+                            snippet = item.get("snippet", "")
+                            
+                            if not url:
+                                continue
+                                
+                            print(f"📰 Processing: {title}")
+                            
+                            # Try to extract full article content
+                            content = None
+                            try:
+                                downloaded = trafilatura.fetch_url(url)
+                                if downloaded:
+                                    content = trafilatura.extract(
+                                        downloaded,
+                                        include_comments=False,
+                                        include_tables=True,
+                                        include_formatting=False
+                                    )
+                            except Exception as e:
+                                print(f"⚠️ Trafilatura failed for {url}: {e}")
+                            
+                            # If trafilatura failed, use the snippet from search results
+                            if not content or len(content.strip()) < 100:
+                                content = f"Title: {title}\n\nSummary: {snippet}"
+                                print(f"📝 Using search snippet ({len(content)} chars)")
+                            else:
+                                print(f"📄 Extracted full content ({len(content)} chars)")
+                            
+                            if content:
+                                # Add source information
+                                enhanced_content = f"[Source: Google Search - {title}]\n\n{content}"
+                                all_documents.append(enhanced_content)
+                                
+                        except Exception as e:
+                            print(f"❌ Error processing search result: {e}")
+                            continue
+                    
+                    # Don't hammer the API - small delay between queries
+                    import time
+                    time.sleep(1)
+                    
+                except Exception as e:
+                    print(f"❌ Error with search query '{query}': {e}")
+                    continue
+            
+            print(f"🎯 Google Search API extracted {len(all_documents)} documents total")
+            return all_documents
+            
+        except Exception as e:
+            print(f"❌ Google Search API fallback failed: {e}")
+            return []
 
 if __name__ == '__main__':
     # Example Usage

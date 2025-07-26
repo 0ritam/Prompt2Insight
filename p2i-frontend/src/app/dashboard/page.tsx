@@ -107,10 +107,10 @@ export default function DashboardPage() {
           });
         }
         
-        if (routedResult.source === "scraper") {
-          toast.success(`Found ${routedResult.data.length} products from live data`);
-        } else if (routedResult.source === "google") {
-          toast.success(`Found ${routedResult.data.length} results from Google Search`);
+        if (routedResult.source === "google") {
+          toast.success(`Found ${routedResult.data.length} products from Google Search`);
+        } else if (routedResult.source === "scraper") {
+          toast.success(`Found ${routedResult.data.length} products from live scraping (fallback)`);
         } else {
           toast.success(`Generated AI product suggestions`);
         }
@@ -164,12 +164,12 @@ export default function DashboardPage() {
                 </p>
                 {result.fallback && (
                   <p className="text-sm text-amber-600 mb-2">
-                    ⚠️ Fallback to Gemini AI was used
+                    ⚠️ Fallback method was used (scraper/AI instead of Google Search)
                   </p>
                 )}
                 {result.googleFallback && (
                   <p className="text-sm text-blue-600 mb-2">
-                    🔍 Google Search fallback was used
+                    🔍 Google Search was used as fallback from scraper
                   </p>
                 )}
                 <details className="mt-2">

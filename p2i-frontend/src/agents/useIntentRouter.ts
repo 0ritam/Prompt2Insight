@@ -41,9 +41,10 @@ export function useIntentRouter(): UseIntentRouterResult {
 
   /**
    * Routes the user intent to the appropriate agent based on intent
+   * Now prioritizes Google Search for better reliability
    * @param parsedPrompt The parsed user prompt with intent and products
    * @param originPrompt The original user prompt text
-   * @param forceAI Optional flag to force AI-generated products instead of scraping
+   * @param forceAI Optional flag to force AI-generated products instead of searching
    * @param sessionId Optional session ID for logging scraper tasks
    * @returns Promise with the unified result
    */
@@ -60,60 +61,54 @@ export function useIntentRouter(): UseIntentRouterResult {
       const scrapeTasks = buildScrapeInstructions(parsedPrompt);
       console.log("Scrape tasks:", scrapeTasks);
 
-      // Try scraper first (unless forceAI is explicitly true)
+      // If forceAI is explicitly true, skip to Gemini
       if (forceAI) {
-        console.log("Force AI mode enabled, skipping scraper");
-      } else {
-        try {
-          console.log("Attempting to fetch scraped products...");
-          const scrapedProducts = await fetchScrapedProducts(scrapeTasks, false, sessionId);
-          if (scrapedProducts && scrapedProducts.length > 0) {
-            const result: RoutedResult = {
-              source: "scraper",
-              data: scrapedProducts,
-              originalPrompt: originPrompt
-            };
-            setState(prev => ({ ...prev, isLoading: false, result }));
-            return result;
-          }
-          
-          // If scraper returned no products, try Google Search fallback
-          console.log("No scraped products found, trying Google Search fallback...");
-          try {
-            const googleResults = await searchProducts(originPrompt, 3);
-            if (googleResults && googleResults.length > 0) {
-              const result: RoutedResult = {
-                source: "google",
-                data: googleResults,
-                originalPrompt: originPrompt,
-                googleFallback: true
-              };
-              setState(prev => ({ ...prev, isLoading: false, result }));
-              return result;
-            }
-          } catch (googleError) {
-            console.error("Google Search fallback failed:", googleError);
-          }
-        } catch (error) {
-          console.error("Scraper failed, trying Google Search fallback:", error);
-          
-          // Try Google Search as fallback if scraper fails
-          try {
-            const googleResults = await searchProducts(originPrompt, 3);
-            if (googleResults && googleResults.length > 0) {
-              const result: RoutedResult = {
-                source: "google",
-                data: googleResults,
-                originalPrompt: originPrompt,
-                googleFallback: true
-              };
-              setState(prev => ({ ...prev, isLoading: false, result }));
-              return result;
-            }
-          } catch (googleError) {
-            console.error("Google Search fallback failed:", googleError);
-          }
+        console.log("Force AI mode enabled, using Gemini directly");
+        const suggestions = await fetchGeminiSuggestions(originPrompt);
+        const result: RoutedResult = {
+          source: "gemini",
+          data: suggestions,
+          originalPrompt: originPrompt,
+          fallback: true
+        };
+        setState((prev) => ({ ...prev, isLoading: false, result }));
+        return result;
+      }
+
+      // Try Google Search first (now primary method)
+      try {
+        console.log("Attempting Google Search (primary method)...");
+        const googleResults = await searchProducts(originPrompt, 5); // Get more results
+        if (googleResults && googleResults.length > 0) {
+          const result: RoutedResult = {
+            source: "google",
+            data: googleResults,
+            originalPrompt: originPrompt
+          };
+          setState(prev => ({ ...prev, isLoading: false, result }));
+          return result;
         }
+        console.log("Google Search returned no results, trying scraper fallback...");
+      } catch (googleError) {
+        console.error("Google Search failed, trying scraper fallback:", googleError);
+      }
+
+      // Fallback to scraper if Google Search fails or returns no results
+      try {
+        console.log("Attempting scraper fallback...");
+        const scrapedProducts = await fetchScrapedProducts(scrapeTasks, false, sessionId);
+        if (scrapedProducts && scrapedProducts.length > 0) {
+          const result: RoutedResult = {
+            source: "scraper",
+            data: scrapedProducts,
+            originalPrompt: originPrompt,
+            fallback: true // Mark as fallback since Google Search was primary
+          };
+          setState(prev => ({ ...prev, isLoading: false, result }));
+          return result;
+        }
+      } catch (scraperError) {
+        console.error("Scraper fallback also failed:", scraperError);
       }
 
       // Fallback to Gemini if scraper fails or forceAI is true
