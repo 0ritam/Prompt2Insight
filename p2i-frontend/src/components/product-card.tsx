@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, MessageCircle } from "lucide-react";
+import { RAGChat } from "./rag-chat";
 import type { ProductSource } from "~/agents/useIntentRouter";
 
 interface ProductCardProps {
@@ -13,6 +14,8 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, source }: ProductCardProps) {
+  const [isRAGChatOpen, setIsRAGChatOpen] = useState(false);
+  
   // Debug: Log the product data
   console.log("ProductCard received product:", product);
   
@@ -131,17 +134,39 @@ export function ProductCard({ product, source }: ProductCardProps) {
       </CardContent>
       
       <CardFooter className="px-4 pb-4 pt-0">
-        {productUrl && productUrl !== "#" && (
+        <div className="flex gap-2 w-full">
+          {/* AI Analysis Button */}
           <Button 
-            variant="outline" 
+            variant="default" 
             size="sm"
-            className="w-full gap-1"
-            onClick={() => window.open(productUrl, '_blank')}
+            className="flex-1 gap-1"
+            onClick={() => setIsRAGChatOpen(true)}
           >
-            View Product <ExternalLink className="h-3 w-3" />
+            <MessageCircle className="h-3 w-3" />
+            Ask AI
           </Button>
-        )}
+          
+          {/* View Product Button */}
+          {productUrl && productUrl !== "#" && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="flex-1 gap-1"
+              onClick={() => window.open(productUrl, '_blank')}
+            >
+              <ExternalLink className="h-3 w-3" />
+              View
+            </Button>
+          )}
+        </div>
       </CardFooter>
+      
+      {/* RAG Chat Modal */}
+      <RAGChat 
+        productName={productName}
+        isOpen={isRAGChatOpen}
+        onClose={() => setIsRAGChatOpen(false)}
+      />
     </Card>
   );
 }

@@ -8,6 +8,7 @@ from typing import List, Dict, Any, Optional
 class RAGQuery(BaseModel):
     product_name: str
     question: str
+    persona: Optional[str] = None  # Add persona field for personalized responses
 
 # Pydantic models for ChromaDB responses
 class CollectionInfo(BaseModel):
@@ -32,20 +33,36 @@ router = APIRouter()
 @router.post("/ask")
 async def ask_product_question(query: RAGQuery):
     """
-    Accepts a product name and a question, and returns an AI-generated
-    answer based on scraped web context.
+    Accepts a product name, a question, and optional persona, 
+    and returns an AI-generated answer based on scraped web context.
     """
     print(f"Received query for product: '{query.product_name}'")
     print(f"Question: '{query.question}'")
+    print(f"Persona: '{query.persona}'")
     
-    # Call the RAG pipeline function
-    answer = run_rag_query(
-        product_name=query.product_name,
-        question=query.question
-    )
-    
-    # Return the answer in a JSON response
-    return {"answer": answer}
+    try:
+        # Call the RAG pipeline function with persona
+        result = run_rag_query(
+            product_name=query.product_name,
+            question=query.question,
+            persona=query.persona  # Pass persona to pipeline
+        )
+        
+        # Return enhanced response with persona information
+        return {
+            "success": True,
+            "product_name": query.product_name,
+            "question": query.question,
+            "persona": query.persona,
+            "answer": result["answer"],
+            "sources": result.get("sources", []),
+            "execution_time": result.get("execution_time", 0),
+            "persona_used": result.get("persona_used", "general")
+        }
+        
+    except Exception as e:
+        print(f"Error in RAG query: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"RAG processing failed: {str(e)}")
 
 @router.get("/chromadb/collections", response_model=List[CollectionInfo])
 async def get_chromadb_collections():

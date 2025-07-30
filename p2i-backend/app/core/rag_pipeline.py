@@ -1,5 +1,7 @@
 import os
 import re
+import time
+from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 
 # Import framework-specific components
@@ -11,6 +13,85 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 # Import local application services
 from app.services.data_scraper import DataScraper
 from app.services.vector_store import VectorStoreService
+
+# Define persona-specific prompt engineering templates
+PERSONA_PROMPTS = {
+    "budget_student": {
+        "system_prompt": """You are a Budget-Conscious Student Advisor. Provide practical, concise advice for students with limited finances.
+
+RESPONSE GUIDELINES:
+- Keep responses under 300 words
+- Focus on value for money and essential features
+- Use simple, friendly language
+- Include specific price comparisons when available
+- Mention student discounts or deals
+- Structure: Quick recommendation → Key pros/cons → Bottom line
+
+Your role: Help students make smart purchasing decisions within budget constraints.""",
+        
+        "context_filter": "Focus on pricing, deals, durability, essential features, and cost comparisons."
+    },
+    
+    "power_user": {
+        "system_prompt": """You are a Tech Enthusiast Expert. Provide detailed technical insights for users who want performance details.
+
+RESPONSE GUIDELINES:
+- Keep responses under 400 words
+- Focus on specifications, performance, and technical features
+- Use technical terms but keep it accessible
+- Include benchmarks or performance metrics when available
+- Compare with similar products in the category
+- Structure: Quick verdict → Technical highlights → Performance notes → Recommendation
+
+Your role: Help tech-savvy users understand the technical aspects and performance potential.""",
+        
+        "context_filter": "Prioritize technical specifications, performance data, and advanced capabilities."
+    },
+    
+    "general": {
+        "system_prompt": """You are a Balanced Product Analyst. Provide well-rounded, easy-to-understand product analysis for general consumers.
+
+RESPONSE GUIDELINES:
+- Keep responses under 350 words
+- Balance technical details with practical benefits
+- Use clear, accessible language
+- Cover pros and cons fairly
+- Include real-world usage scenarios
+- Structure: Summary → Key strengths → Potential concerns → Final recommendation
+
+Your role: Help general consumers make informed decisions with balanced, practical advice.""",
+        
+        "context_filter": "Include comprehensive information covering features, user experience, and overall value."
+    }
+}
+
+def _post_process_response(response: str, persona: str, max_words: int = 350) -> str:
+    """
+    Post-process the RAG response to ensure it's well-formatted and appropriately sized.
+    """
+    # Remove excessive whitespace and normalize line breaks
+    response = ' '.join(response.split())
+    
+    # If response is too long, truncate intelligently
+    words = response.split()
+    
+    if len(words) > max_words:
+        # Try to end at a sentence boundary near the limit
+        truncated = ' '.join(words[:max_words])
+        
+        # Find the last sentence ending
+        last_period = truncated.rfind('.')
+        last_exclamation = truncated.rfind('!')
+        last_question = truncated.rfind('?')
+        
+        sentence_end = max(last_period, last_exclamation, last_question)
+        
+        if sentence_end > len(truncated) * 0.8:  # If we can trim to a sentence ending
+            response = truncated[:sentence_end + 1]
+        else:
+            response = truncated + "..."
+    
+    return response.strip()
 
 def _sanitize_collection_name(name: str) -> str:
     """
@@ -36,23 +117,35 @@ def _sanitize_collection_name(name: str) -> str:
     # Ensure the name is between 3 and 63 characters
     return name[:63]
 
-def run_rag_query(product_name: str, question: str) -> str:
+def run_rag_query(product_name: str, question: str, persona: Optional[str] = None) -> Dict[str, Any]:
     """
-    Executes a full RAG pipeline for a given product and question.
+    Executes a full RAG pipeline for a given product and question with persona-based analysis.
 
     This function will:
     1. Scrape data for the product if it's not already in the vector store.
     2. Build a vector store for the product.
-    3. Use a RAG chain to answer the question based on the scraped context.
+    3. Use a RAG chain with persona-specific prompting to answer the question.
 
     Args:
         product_name: The name of the product to query.
         question: The user's question about the product.
+        persona: Optional persona type ('budget_student', 'power_user', 'general', or None)
 
     Returns:
-        The AI-generated answer as a string.
+        Dictionary containing:
+        - answer: The AI-generated answer as a string
+        - sources: List of source documents used
+        - execution_time: Time taken to process the query
+        - persona_used: The actual persona applied
     """
+    start_time = time.time()
     load_dotenv()
+
+    # Determine which persona to use
+    persona_used = persona if persona in PERSONA_PROMPTS else "general"
+    persona_config = PERSONA_PROMPTS[persona_used]
+    
+    print(f"Using persona: '{persona_used}'")
 
     # 1. Instantiate services
     data_scraper = DataScraper()
@@ -81,7 +174,12 @@ def run_rag_query(product_name: str, question: str) -> str:
         all_documents = documents + youtube_docs
         
         if not all_documents:
-            return "I'm sorry, but I couldn't find enough information about this product to answer your question."
+            return {
+                "answer": "I'm sorry, but I couldn't find enough information about this product to answer your question.",
+                "sources": [],
+                "execution_time": time.time() - start_time,
+                "persona_used": persona_used
+            }
             
         # Build the vector store with the new documents
         print("Building vector store...")
@@ -91,15 +189,36 @@ def run_rag_query(product_name: str, question: str) -> str:
     # 4. Get the retriever for the product's collection
     retriever = vector_service.get_retriever(collection_name)
 
-    # 5. Define the prompt template
-    template = """Use the following context to answer the question. If you don't know the answer, just say that you don't know.
-Context: {context}
-Question: {question}
-Answer: """
+    # 5. Define the persona-specific prompt template with improved formatting
+    persona_instruction = persona_config["system_prompt"]
+    
+    template = f"""{persona_instruction}
+
+Use the following context to answer the question about the product. Your response MUST be in user-friendly markdown format.
+
+**Formatting Rules:**
+- Start with a '### **Summary**' heading
+- Follow with a '---' separator
+- Add a '### **Key Strengths**' heading. Under it, list each strength as a bullet point (`* **Feature:** Description`)
+- Follow with a '---' separator  
+- Add a '### **Potential Concerns**' heading. Under it, list each concern as a bullet point (`* **Aspect:** Description`)
+- End with a '---' separator and a '### **Recommendation**' heading with your final advice
+- Do not include any text before the '### **Summary**' heading
+
+Context: {{context}}
+
+Question: {{question}}
+
+Answer:"""
+
     prompt = PromptTemplate.from_template(template)
 
-    # 6. Initialize the LLM
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+    # 6. Initialize the LLM with appropriate settings for focused responses
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-1.5-flash",  # Try a different model
+        temperature=0.3,
+        max_output_tokens=1000  # Increase token limit
+    )
 
     # 7. Define the RAG chain using LCEL
     setup_and_retrieval = RunnableParallel(
@@ -108,34 +227,84 @@ Answer: """
     rag_chain = setup_and_retrieval | prompt | llm | StrOutputParser()
 
     # 8. Invoke the chain and get the answer
-    print("\nInvoking RAG chain to answer the question...")
-    answer = rag_chain.invoke(question)
+    print(f"\nInvoking RAG chain with {persona_used} persona...")
     
-    return answer
+    try:
+        raw_answer = rag_chain.invoke(question)
+        
+        # If empty response, try a simpler approach
+        if not str(raw_answer).strip():
+            print("⚠️ Empty response from LLM, trying fallback...")
+            
+            # Get context directly and try a simple question
+            context_docs = retriever.invoke(question)
+            context_text = "\n\n".join([doc.page_content[:500] for doc in context_docs[:2]])
+            
+            fallback_prompt = f"""Based on this information about gaming laptops:
+            
+{context_text}
+
+Question: {question}
+
+Provide a helpful answer in 2-3 sentences:"""
+            
+            raw_answer = llm.invoke(fallback_prompt)
+        
+    except Exception as e:
+        print(f"❌ Error invoking LLM: {e}")
+        raw_answer = f"I encountered an error while analyzing this product. Error: {str(e)}"
+    
+    # Post-process the response for better formatting and length
+    processed_answer = _post_process_response(str(raw_answer), persona_used)
+    
+    # 9. Get source documents for transparency
+    source_docs = retriever.invoke(question)  # Use invoke instead of deprecated method
+    sources = [{"source": doc.metadata.get("source", "Unknown"), 
+                "content_preview": doc.page_content[:150] + "..."} 
+               for doc in source_docs[:3]]  # Top 3 sources
+    
+    execution_time = time.time() - start_time
+    
+    return {
+        "answer": processed_answer,
+        "sources": sources,
+        "execution_time": execution_time,
+        "persona_used": persona_used
+    }
 
 if __name__ == '__main__':
-    # Example usage of the RAG pipeline
+    # Example usage of the RAG pipeline with persona testing
     # Make sure you have a .env file with your GOOGLE_API_KEY
     
     product = "iPhone 15 Pro"
     user_question = "What are the main criticisms about its battery life and heat?"
     
-    print(f"--- Running RAG pipeline for Product: '{product}' ---")
+    print(f"--- Testing RAG pipeline with different personas ---")
+    print(f"Product: '{product}'")
     print(f"Question: {user_question}\n")
     
-    final_answer = run_rag_query(product_name=product, question=user_question)
+    # Test with budget student persona
+    print("=== BUDGET STUDENT PERSONA ===")
+    budget_result = run_rag_query(product_name=product, question=user_question, persona="budget_student")
+    print(f"Answer: {budget_result['answer']}")
+    print(f"Execution time: {budget_result['execution_time']:.2f}s")
+    print(f"Sources used: {len(budget_result['sources'])}")
     
-    print("\n--- Final Answer ---")
-    print(final_answer)
-    print("--------------------")
+    print("\n=== POWER USER PERSONA ===")
+    power_result = run_rag_query(product_name=product, question=user_question, persona="power_user")
+    print(f"Answer: {power_result['answer']}")
+    print(f"Execution time: {power_result['execution_time']:.2f}s")
     
-    # Second run to show it uses the existing collection
-    print("\n--- Running RAG pipeline again to test persistence ---")
-    another_question = "How is the camera system described in reviews?"
-    print(f"Question: {another_question}\n")
+    print("\n=== GENERAL PERSONA ===")
+    general_result = run_rag_query(product_name=product, question=user_question, persona="general")
+    print(f"Answer: {general_result['answer']}")
+    print(f"Execution time: {general_result['execution_time']:.2f}s")
     
-    second_answer = run_rag_query(product_name=product, question=another_question)
+    print("\n--- Testing different question ---")
+    camera_question = "How is the camera system described in reviews?"
     
-    print("\n--- Final Answer ---")
-    print(second_answer)
+    print(f"\nQuestion: {camera_question}")
+    print("=== POWER USER PERSONA (Camera Analysis) ===")
+    camera_result = run_rag_query(product_name=product, question=camera_question, persona="power_user")
+    print(f"Answer: {camera_result['answer']}")
     print("--------------------")

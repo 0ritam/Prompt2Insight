@@ -78,6 +78,12 @@ test_results/
 coverage/
 .pytest_cache/
 
+# Custom test scripts
+test_persona_rag.py
+test_improved_responses.py
+test_formatting.py
+test_enhanced_scraper.py
+
 # Temporary files
 *.tmp
 *.temp
