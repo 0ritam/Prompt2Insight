@@ -79,10 +79,14 @@ coverage/
 .pytest_cache/
 
 # Custom test scripts
-test_persona_rag.py
-test_improved_responses.py
-test_formatting.py
-test_enhanced_scraper.py
+
+
+test_amazon_scraper.py
+ecommerce_scraper.py
+
+
+main.py
+
 
 # Temporary files
 *.tmp

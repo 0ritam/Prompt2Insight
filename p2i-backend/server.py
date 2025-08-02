@@ -23,11 +23,11 @@ print(f"🔍 Google Engine ID loaded: {'✅' if google_engine_id else '❌'}")
 scraper_dir = Path(__file__).parent / "app" / "scrapers" / "flipkart" / "e-commerce-scrapper-main"
 sys.path.insert(0, str(scraper_dir))
 
-# Import the FastAPI app from flipkart_api
+# Import the FastAPI app from flipkart_api (now cleaned up to only contain Google Search)
 try:
     from flipkart_api import app
     from app.api.v1.router import api_router
-    print("✅ Successfully imported flipkart_api and api_router")
+    print("✅ Successfully imported flipkart_api (cleaned) and api_router")
 except ImportError as e:
     print(f"❌ Failed to import flipkart_api: {e}")
     print(f"Make sure you're in the correct directory and dependencies are installed")
@@ -46,7 +46,7 @@ if __name__ == "__main__":
         os.chdir(scraper_dir)
         
         uvicorn.run(
-            "flipkart_api:app",  # Use import string instead of app object
+            "flipkart_api:app",  # Now clean version with only Google Search
             host="0.0.0.0", 
             port=8001,
             reload=True
