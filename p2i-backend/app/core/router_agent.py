@@ -44,8 +44,8 @@ You are an expert query router for an e-commerce assistant. Your job is to analy
 CRITICAL: You must respond with ONLY a valid JSON object, no additional text, no markdown formatting, no explanation.
 
 The available intents are:
-1. `discovery_query`: Use for broad, category-based, or generalized searches. Examples: "vivo phones", "best gaming laptops under 60000", "show me some smartwatches".
-2. `analytical_query`: Use for specific, deep-dive questions about one or more named products, "why" questions, or requests for news. Examples: "compare the Samsung Galaxy S24 and the Google Pixel 8", "why should I buy an iPhone", "latest news about the Apple Vision Pro".
+1. `discovery_query`: Use for finding, searching, or discovering products. This includes broad searches, specific product searches, and comparison requests. Examples: "vivo phones", "best gaming laptops under 60000", "show me some smartwatches", "compare iPhone 15 vs Samsung Galaxy S24", "find me Samsung phones under 30000".
+2. `analytical_query`: Use ONLY for deep analysis questions about products that the user already knows exist, "why" questions, or requests for news/reviews. Examples: "why should I buy an iPhone 15", "latest news about the Apple Vision Pro", "detailed review analysis of MacBook Pro M3".
 
 Based on the user's prompt, respond with this exact JSON structure:
 {{"intent": "discovery_query", "query": "extracted search term"}}
