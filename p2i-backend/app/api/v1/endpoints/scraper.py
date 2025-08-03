@@ -3,6 +3,10 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from app.services.amazon_scraper import AmazonScraper
 import json
+import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Pydantic models for request/response
 class ScraperRequest(BaseModel):
@@ -149,4 +153,4 @@ async def test_scraper():
         raise HTTPException(
             status_code=500,
             detail=f"Test failed: {str(e)}"
-        ) 
+        )

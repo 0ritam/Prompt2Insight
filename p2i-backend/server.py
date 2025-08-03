@@ -20,7 +20,7 @@ print(f"🔑 Google API Key loaded: {'✅' if google_api_key else '❌'}")
 print(f"🔍 Google Engine ID loaded: {'✅' if google_engine_id else '❌'}")
 
 # Add the scraper directory to Python path
-scraper_dir = Path(__file__).parent / "app" / "scrapers" / "flipkart" / "e-commerce-scrapper-main"
+scraper_dir = Path(__file__).parent / "app" / "scrapers" / "flipkart"
 sys.path.insert(0, str(scraper_dir))
 
 # Import the FastAPI app from flipkart_api (now cleaned up to only contain Google Search)

@@ -112,3 +112,8 @@ google_api_key.txt
 *.mov
 *.mp3
 *.wav
+
+# Test files
+test_*.py
+*_test.py
+tests/

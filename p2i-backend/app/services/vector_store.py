@@ -1,5 +1,6 @@
 import os
 import chromadb
+from pathlib import Path
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_chroma import Chroma
 from dotenv import load_dotenv
@@ -21,7 +22,11 @@ class VectorStoreService:
             raise ValueError("GOOGLE_API_KEY not found in environment variables.")
 
         self.embedding_function = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
-        self.persist_directory = "./chroma_db_store"
+        
+        # Use absolute path to ensure ChromaDB is always created in the main backend directory
+        backend_root = Path(__file__).parent.parent.parent  # Go up from app/services/ to p2i-backend/
+        self.persist_directory = str(backend_root / "chroma_db_store")
+        
         self.client = chromadb.PersistentClient(path=self.persist_directory)
 
     def get_or_create_collection(self, collection_name: str):
