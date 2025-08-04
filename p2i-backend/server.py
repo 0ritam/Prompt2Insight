@@ -40,6 +40,13 @@ if __name__ == "__main__":
     print("📍 Server will be available at: http://localhost:8001")
     print("📖 API docs will be available at: http://localhost:8001/docs")
     print("🛑 Press Ctrl+C to stop the server")
+    print("\n🔌 Available API Endpoints:")
+    print("   🔍 Google Search: /google-search")
+    print("   🧠 Central Query Handler: /api/v1/query/handle_query")
+    print("   📚 RAG Analysis: /api/v1/rag/ask")
+    print("   🛒 Amazon Scraper: /api/v1/amazon/scrape_amazon")
+    print("   ❤️  Health Checks: /health, /api/v1/amazon/health")
+    print("="*60)
     
     try:
         # Change working directory to the scraper directory for reload to work
