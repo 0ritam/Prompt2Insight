@@ -8,7 +8,7 @@ import { useGeminiAgent } from "../hooks/useGeminiAgent";
 import { useGoogleSearch } from "../hooks/useGoogleSearch";
 import { buildScrapeInstructions } from "~/agents/routerAgent";
 
-export type ProductSource = "scraper" | "gemini" | "google";
+export type ProductSource = "scraper" | "gemini" | "google" | "amazon" | "analysis";
 
 export interface RoutedResult {
   source: ProductSource;
@@ -16,6 +16,9 @@ export interface RoutedResult {
   originalPrompt: string;
   fallback?: boolean;
   googleFallback?: boolean;
+  // NEW: Amazon integration fields
+  amazonReady?: boolean;
+  amazonQueryData?: any;
 }
 
 interface IntentRouterState {

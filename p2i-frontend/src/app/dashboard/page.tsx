@@ -7,7 +7,7 @@ import { PromptDebugger } from "~/components/prompt-debugger";
 import { ProductGrid } from "~/components/product-grid";
 import { DevModeToggle } from "~/components/dev-mode-toggle";
 import { type ParsedPrompt, type ScrapeSession } from "~/types";
-import { useIntentRouter, type RoutedResult } from "~/agents/useIntentRouter";
+import { useIntentRouter, type RoutedResult, type ProductSource } from "~/agents/useIntentRouter";
 import { generateSessionId } from "~/lib/session";
 import { logPromptSession, updatePromptSession } from "~/lib/clientLogger";
 import { useSession } from "next-auth/react";
@@ -44,94 +44,84 @@ export default function DashboardPage() {
         });
       }
 
-      // First, parse the prompt
-      const parseResponse = await fetch("/api/prompt/parse", {
+      toast.info("Processing your query...");
+
+      // NEW: Call the unified Central Query Handler endpoint
+      const response = await fetch("http://localhost:8001/api/v1/query/handle_query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ 
+          query: prompt,
+          max_results: 5
+        }),
       });
 
-      if (!parseResponse.ok) {
-        const error = await parseResponse.json();
-        // Update session with error
-        if (authSession?.user?.id && sessionId) {
-          await updatePromptSession(sessionId, {
-            status: "error",
-            errorMessage: error.message || "Failed to parse prompt",
-          });
-        }
-        throw new Error(error.message || "Failed to parse prompt");
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to process query");
       }
 
-      const parsedPrompt: ParsedPrompt = await parseResponse.json();
-
-      // Update session status to parsed
+      const queryResult = await response.json();
+      
+      // Update session with success
       if (authSession?.user?.id && sessionId) {
         await updatePromptSession(sessionId, {
-          status: "parsed",
+          status: "done",
+          resultData: {
+            source: queryResult.type,
+            dataCount: queryResult.type === "discovery_result" ? 
+              (queryResult.products?.length || 0) + (queryResult.links?.length || 0) :
+              1,
+            responseType: queryResult.type,
+          },
         });
       }
 
-      // Then, get scraping instructions
-      const instructionResponse = await fetch("/api/route-instruction", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsedPrompt),
-      });
-
-      if (!instructionResponse.ok) {
-        const error = await instructionResponse.json();
-        throw new Error(error.message || "Failed to generate scraping instructions");
-      }
-
-      const newSession: ScrapeSession = await instructionResponse.json();
-      setSession(newSession);
-      toast.success("Generated instructions");
-      
-      // Use our intent router to get the right data source
-      try {
-        toast.info(`Processing ${parsedPrompt.intent} intent...`);
-        const routedResult = await routeUserIntent(parsedPrompt, prompt, forceAI, sessionId);
+      // Convert backend response to frontend format
+      if (queryResult.type === "discovery_result") {
+        // Discovery result - show products and optional Amazon button
+        const routedResult: RoutedResult = {
+          source: "google" as ProductSource, // Indicates it came from discovery workflow
+          data: [...(queryResult.products || []), ...(queryResult.links || [])],
+          originalPrompt: prompt,
+          fallback: false,
+          amazonReady: queryResult.amazon_ready || false,
+          amazonQueryData: queryResult.amazon_query_data || null,
+        };
         setResult(routedResult);
         
-        // Update session with results
-        if (authSession?.user?.id && sessionId) {
-          await updatePromptSession(sessionId, {
-            status: "done",
-            resultData: {
-              source: routedResult.source,
-              dataCount: routedResult.data.length,
-              fallback: routedResult.fallback,
-              googleFallback: routedResult.googleFallback,
-            },
-          });
-        }
+        toast.success(`Found ${routedResult.data.length} results from discovery workflow`);
+      } else if (queryResult.type === "analysis_result") {
+        // Analysis result - show AI answer
+        const routedResult: RoutedResult = {
+          source: "analysis" as ProductSource,
+          data: [{
+            type: "analysis",
+            answer: queryResult.answer,
+            persona: queryResult.persona,
+            execution_time: queryResult.execution_time,
+          }],
+          originalPrompt: prompt,
+          fallback: false,
+        };
+        setResult(routedResult);
         
-        if (routedResult.source === "google") {
-          toast.success(`Found ${routedResult.data.length} products from Google Search`);
-        } else if (routedResult.source === "scraper") {
-          toast.success(`Found ${routedResult.data.length} products from live scraping (fallback)`);
-        } else {
-          toast.success(`Generated AI product suggestions`);
-        }
-      } catch (routerError) {
-        console.error("Router error:", routerError);
-        
-        // Update session with error
-        if (authSession?.user?.id && sessionId) {
-          await updatePromptSession(sessionId, {
-            status: "error",
-            errorMessage: routerError instanceof Error ? routerError.message : "Failed to process intent",
-          });
-        }
-        
-        toast.error("Failed to process intent");
+        toast.success("Analysis completed successfully");
       }
 
     } catch (error) {
       const message = error instanceof Error ? error.message : "An error occurred";
       toast.error(message);
       console.error("Error processing prompt:", error);
+      
+      // Update session with error
+      if (authSession?.user?.id && currentSessionId) {
+        await updatePromptSession(currentSessionId, {
+          status: "error",
+          errorMessage: message,
+        });
+      }
+      
       setSession(null);
     } finally {
       setLoading(false);

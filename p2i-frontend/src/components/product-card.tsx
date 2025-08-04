@@ -7,6 +7,7 @@ import { Button } from "~/components/ui/button";
 import { ExternalLink, MessageCircle } from "lucide-react";
 import { RAGChat } from "./rag-chat";
 import type { ProductSource } from "~/agents/useIntentRouter";
+import { toast } from "sonner";
 
 interface ProductCardProps {
   product: any;
@@ -16,8 +17,8 @@ interface ProductCardProps {
 export function ProductCard({ product, source }: ProductCardProps) {
   const [isRAGChatOpen, setIsRAGChatOpen] = useState(false);
   
-  // Debug: Log the product data
-  console.log("ProductCard received product:", product);
+  // Debug: Log the product data (only for development)
+  // console.log("ProductCard received product:", product);
   
   // Add a CSS fix for any empty elements in the UI
   useEffect(() => {
@@ -44,11 +45,13 @@ export function ProductCard({ product, source }: ProductCardProps) {
   };
 
   // Handle different product data structures from different sources
-  const productName = safeString(product.title || product.name || "Unknown Product");
+  // FIXED: Amazon scraper returns names in "name" field, titles in "title"
+  const productName = safeString(product.name || product.title || "Unknown Product");
   const productPrice = safeString(product.price || "Price not available");
   const productRating = safeString(product.rating || "N/A");
   const productImage = safeString(product.image || "/placeholder-product.jpg");
-  const productUrl = safeString(product.url || product.productUrl || "#");
+  // FIXED: Amazon scraper returns URLs in "link" field
+  const productUrl = safeString(product.link || product.url || product.productUrl || "#");
   const productDescription = safeString(product.description || product.specifications || product.snippet || "");
   
   // Format additional info if it exists
@@ -93,14 +96,18 @@ export function ProductCard({ product, source }: ProductCardProps) {
               ? "bg-green-600" 
               : source === "google" 
                 ? "border-blue-500 text-blue-600 bg-blue-50"
-                : "border-amber-500 text-amber-500"
+                : source === "amazon"
+                  ? "border-orange-500 text-orange-600 bg-orange-50"
+                  : "border-amber-500 text-amber-500"
           }
         >
           {source === "scraper" 
             ? "Live Data" 
             : source === "google" 
               ? "Web/Google Suggested" 
-              : "AI-Suggested"}
+              : source === "amazon"
+                ? "🛒 Live Amazon"
+                : "AI-Suggested"}
         </Badge>
       </CardHeader>
       
@@ -134,28 +141,46 @@ export function ProductCard({ product, source }: ProductCardProps) {
       </CardContent>
       
       <CardFooter className="px-4 pb-4 pt-0">
+        {/* For Amazon products, show View Product button instead of full URL */}
+        {source === "amazon" && productUrl && productUrl !== "#" && (
+          <div className="w-full mb-3">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-2">
+              <p className="text-xs font-medium text-orange-800 mb-2">🛒 Amazon Product Link:</p>
+              <Button
+                variant="default"
+                size="sm"
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white gap-1"
+                onClick={() => window.open(productUrl, '_blank')}
+              >
+                <ExternalLink className="h-3 w-3" />
+                View Product on Amazon
+              </Button>
+            </div>
+          </div>
+        )}
+        
         <div className="flex gap-2 w-full">
           {/* AI Analysis Button */}
           <Button 
             variant="default" 
             size="sm"
-            className="flex-1 gap-1"
+            className="flex-1 gap-1 min-w-0"
             onClick={() => setIsRAGChatOpen(true)}
           >
-            <MessageCircle className="h-3 w-3" />
-            Ask AI
+            <MessageCircle className="h-3 w-3 shrink-0" />
+            <span className="truncate">Ask AI</span>
           </Button>
           
-          {/* View Product Button */}
-          {productUrl && productUrl !== "#" && (
+          {/* Non-Amazon products - show regular View button */}
+          {source !== "amazon" && productUrl && productUrl !== "#" && (
             <Button 
               variant="outline" 
               size="sm"
-              className="flex-1 gap-1"
+              className="flex-1 gap-1 min-w-0"
               onClick={() => window.open(productUrl, '_blank')}
             >
-              <ExternalLink className="h-3 w-3" />
-              View
+              <ExternalLink className="h-3 w-3 shrink-0" />
+              <span className="truncate">View</span>
             </Button>
           )}
         </div>

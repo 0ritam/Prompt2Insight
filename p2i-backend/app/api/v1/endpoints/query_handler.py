@@ -31,6 +31,7 @@ try:
     from app.core.router_agent import route_query
     from app.core.product_discoverer import find_products_with_ai
     from app.core.rag_pipeline import run_rag_query
+    from app.core.amazon_prompt_parser import parse_query_for_amazon
     from app.scrapers.flipkart.google_search import google_search
     logger.info("✅ All Phase 8 modules imported successfully")
 except ImportError as e:
@@ -42,6 +43,14 @@ except ImportError as e:
         return []
     def run_rag_query(query, persona=None):
         return "Service temporarily unavailable"
+    def parse_query_for_amazon(query):
+        return {
+            "intent": "search",
+            "products": [query],
+            "filters": {"price": "any", "brand": "any"},
+            "attributes": [],
+            "max_products_per_query": 5
+        }
     class GoogleSearchFallback:
         def search_products(self, query, num_results=5):
             return []
@@ -62,6 +71,9 @@ class DiscoveryResult(BaseModel):
     links: List[Dict[str, Any]]
     execution_time: float
     sources: List[str]
+    # NEW: Amazon scraper integration data
+    amazon_ready: bool = True
+    amazon_query_data: Optional[Dict[str, Any]] = None
 
 class AnalysisResult(BaseModel):
     """Response model for analysis queries."""
@@ -113,6 +125,10 @@ async def handle_query(request: QueryRequest):
                 logger.info("🌐 Calling Google Search API...")
                 google_results = google_search.search_products(extracted_query, request.max_results)
                 
+                # NEW: Parse query for Amazon scraper integration
+                logger.info("🛒 Preparing Amazon query data...")
+                amazon_query_data = parse_query_for_amazon(request.query)
+                
                 execution_time = time.time() - start_time
                 
                 logger.info(f"✅ Discovery completed: {len(ai_products)} AI products, {len(google_results)} Google results")
@@ -122,18 +138,29 @@ async def handle_query(request: QueryRequest):
                     products=ai_products,
                     links=google_results,
                     execution_time=execution_time,
-                    sources=["ai_discoverer", "google_search"]
+                    sources=["ai_discoverer", "google_search"],
+                    amazon_ready=True,
+                    amazon_query_data=amazon_query_data
                 )
                 
             except Exception as e:
                 logger.error(f"Error in discovery workflow: {e}")
                 execution_time = time.time() - start_time
+                
+                # Still try to provide Amazon data even if other parts fail
+                try:
+                    amazon_query_data = parse_query_for_amazon(request.query)
+                except:
+                    amazon_query_data = None
+                
                 return DiscoveryResult(
                     query=request.query,
                     products=[],
                     links=[],
                     execution_time=execution_time,
-                    sources=["ai_discoverer", "google_search"]
+                    sources=["ai_discoverer", "google_search"],
+                    amazon_ready=bool(amazon_query_data),
+                    amazon_query_data=amazon_query_data
                 )
             
         elif intent == "analytical_query":
@@ -179,6 +206,9 @@ async def handle_query(request: QueryRequest):
                 ai_products = find_products_with_ai(extracted_query)
                 google_results = google_search.search_products(extracted_query, request.max_results)
                 
+                # Prepare Amazon data for fallback too
+                amazon_query_data = parse_query_for_amazon(request.query)
+                
                 execution_time = time.time() - start_time
                 
                 return DiscoveryResult(
@@ -186,7 +216,9 @@ async def handle_query(request: QueryRequest):
                     products=ai_products,
                     links=google_results,
                     execution_time=execution_time,
-                    sources=["ai_discoverer", "google_search"]
+                    sources=["ai_discoverer", "google_search"],
+                    amazon_ready=True,
+                    amazon_query_data=amazon_query_data
                 )
                 
             except Exception as e:
@@ -197,7 +229,9 @@ async def handle_query(request: QueryRequest):
                     products=[],
                     links=[],
                     execution_time=execution_time,
-                    sources=["ai_discoverer", "google_search"]
+                    sources=["ai_discoverer", "google_search"],
+                    amazon_ready=False,
+                    amazon_query_data=None
                 )
             
     except Exception as e:
