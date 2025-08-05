@@ -53,7 +53,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           query: prompt,
-          max_results: 5
+          max_results: 5 // Reduced to 5 results
         }),
       });
 
@@ -80,19 +80,99 @@ export default function DashboardPage() {
 
       // Convert backend response to frontend format
       if (queryResult.type === "discovery_result") {
-        // Discovery result - show products and optional Amazon button
+        // Discovery result - determine the source based on backend response
+        // First check if backend explicitly indicates the source
+        let sourceType: ProductSource = "gemini"; // Default to AI discovery
+        
+        // Check for explicit Google search indicators
+        if (queryResult.source === "google" || 
+            queryResult.method === "google" ||
+            queryResult.search_type === "google" ||
+            queryResult.search_engine === "google" ||
+            (queryResult.message && queryResult.message.toLowerCase().includes("google")) ||
+            (queryResult.products && queryResult.products.some((p: any) => 
+              p.source === "google_search" || p.source === "google" || p.search_engine === "google"))) {
+          sourceType = "google";
+        }
+        
+        // Check if products have typical Google search result structure
+        else if (queryResult.products && queryResult.products.length > 0) {
+          const firstProduct = queryResult.products[0];
+          // If products have URL and snippet without detailed specifications, likely Google search
+          if ((firstProduct.url || firstProduct.link) && 
+              (firstProduct.snippet || firstProduct.description) && 
+              !firstProduct.specifications && 
+              !firstProduct.rating && 
+              !firstProduct.features) {
+            sourceType = "google";
+          }
+        }
+        
+        // Check if this is a fallback scenario (when primary method fails)
+        const isFallback = queryResult.fallback === true || queryResult.google_fallback === true;
+        
+        console.log("Backend queryResult:", queryResult); // Debug log
+        console.log("Detected source type:", sourceType); // Debug log
+        console.log("Products:", queryResult.products); // Debug log to see product structure
+        
+        // Create the result for the first source (AI Discovery or Google Search)
         const routedResult: RoutedResult = {
-          source: "google" as ProductSource, // Indicates it came from discovery workflow
+          source: sourceType,
           data: [...(queryResult.products || []), ...(queryResult.links || [])],
           originalPrompt: prompt,
-          fallback: false,
+          fallback: isFallback,
           amazonReady: queryResult.amazon_ready || false,
           amazonQueryData: queryResult.amazon_query_data || null,
         };
         setResult(routedResult);
         promptPanelRef.current?.addResult(routedResult, prompt);
         
-        toast.success(`Found ${routedResult.data.length} results from discovery workflow`);
+        // Now create and add the second result (the other type)
+        // If we got AI Discovery, also add Google Search results and vice versa
+        setTimeout(async () => {
+          const alternativeSource: ProductSource = sourceType === "gemini" ? "google" : "gemini";
+          
+          try {
+            toast.info(`Fetching ${alternativeSource === 'google' ? 'Google Search' : 'AI Discovery'} results...`);
+            
+            // Make actual backend call for the alternative source
+            const alternativeResponse = await fetch("http://localhost:8001/api/v1/query/handle_query", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ 
+                query: prompt,
+                max_results: alternativeSource === "gemini" ? 4 : 5, // 4 for AI Discovery, 5 for Google
+                force_method: alternativeSource === "google" ? "google_search" : "ai_discovery" // Force specific method
+              }),
+            });
+
+            if (alternativeResponse.ok) {
+              const alternativeQueryResult = await alternativeResponse.json();
+              
+              if (alternativeQueryResult.type === "discovery_result") {
+                const alternativeResult: RoutedResult = {
+                  source: alternativeSource,
+                  data: [...(alternativeQueryResult.products || []), ...(alternativeQueryResult.links || [])],
+                  originalPrompt: prompt,
+                  fallback: alternativeQueryResult.fallback === true || alternativeQueryResult.google_fallback === true,
+                  amazonReady: alternativeQueryResult.amazon_ready || false,
+                  amazonQueryData: alternativeQueryResult.amazon_query_data || null,
+                };
+                
+                promptPanelRef.current?.addResult(alternativeResult, prompt);
+                toast.success(`Found ${alternativeResult.data.length} additional results from ${alternativeSource === 'google' ? 'Google Search' : 'AI Discovery'}`);
+              }
+            } else {
+              // If alternative call fails, show fallback message
+              toast.warning(`Could not fetch ${alternativeSource === 'google' ? 'Google Search' : 'AI Discovery'} results`);
+            }
+          } catch (error) {
+            console.error("Error fetching alternative results:", error);
+            toast.warning(`Failed to fetch additional ${alternativeSource === 'google' ? 'Google Search' : 'AI Discovery'} results`);
+          }
+        }, 1000); // Add second result after 1 second
+        
+        toast.success(`Found ${routedResult.data.length} results from ${sourceType === 'google' ? 'Google Search' : 'AI Discovery'}. Fetching additional results...`);
       } else if (queryResult.type === "analysis_result") {
         // Analysis result - show AI answer
         const routedResult: RoutedResult = {

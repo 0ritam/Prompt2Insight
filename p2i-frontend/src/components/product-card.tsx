@@ -64,9 +64,13 @@ export function ProductCard({ product, source }: ProductCardProps) {
     <Card className="h-full flex flex-col overflow-hidden">
       <CardHeader className="pb-0 pt-4 px-4 flex flex-row justify-between items-start">
         <div className="flex-1">
-          <h3 className="font-medium text-sm line-clamp-2">{productName}</h3>
+          <h3 className={`text-sm line-clamp-2 ${source === "gemini" ? "font-bold text-purple-900" : "font-medium"}`}>
+            {productName}
+          </h3>
           <div className="flex items-center gap-2 mt-1">
-            <span className="font-semibold text-primary">{productPrice}</span>
+            <span className={`text-primary ${source === "gemini" ? "font-bold text-lg" : "font-semibold"}`}>
+              {productPrice}
+            </span>
             {discount && (
               <span className="text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded">
                 {discount}
@@ -98,7 +102,9 @@ export function ProductCard({ product, source }: ProductCardProps) {
                 ? "border-blue-500 text-blue-600 bg-blue-50"
                 : source === "amazon"
                   ? "border-orange-500 text-orange-600 bg-orange-50"
-                  : "border-amber-500 text-amber-500"
+                  : source === "gemini"
+                    ? "border-purple-500 text-purple-600 bg-purple-50"
+                    : "border-amber-500 text-amber-500"
           }
         >
           {source === "scraper" 
@@ -107,30 +113,66 @@ export function ProductCard({ product, source }: ProductCardProps) {
               ? "Web/Google Suggested" 
               : source === "amazon"
                 ? "🛒 Live Amazon"
-                : "AI-Suggested"}
+                : source === "gemini"
+                  ? "🤖 AI Discovery"
+                  : "AI-Suggested"}
         </Badge>
       </CardHeader>
       
       <CardContent className="px-4 py-2 flex-grow">
-        {productImage && productImage !== "/placeholder-product.jpg" && (
-          <div className="relative w-full aspect-[4/3] mb-3 bg-muted/30 rounded-md overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img 
-              src={productImage} 
-              alt={productName}
-              className="object-contain w-full h-full"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement;
-                target.style.display = 'none';
-              }}
-            />
-          </div>
-        )}
-        
-        {productDescription && (
-          <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-            {productDescription}
-          </p>
+        {/* For AI Discovery (gemini), prioritize text content over images */}
+        {source === "gemini" ? (
+          <>
+            {/* AI Discovery Text-Focused Layout */}
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-3">
+              <h4 className="font-bold text-purple-900 text-sm mb-2">🤖 AI Analysis</h4>
+              {productDescription && (
+                <p className="text-sm font-medium text-purple-800 leading-relaxed">
+                  {productDescription}
+                </p>
+              )}
+            </div>
+            
+            {/* Optional image for AI discovery, smaller and less prominent */}
+            {productImage && productImage !== "/placeholder-product.jpg" && (
+              <div className="relative w-24 h-24 mx-auto mb-2 bg-muted/30 rounded-md overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img 
+                  src={productImage} 
+                  alt={productName}
+                  className="object-contain w-full h-full opacity-70"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Regular layout for other sources */}
+            {productImage && productImage !== "/placeholder-product.jpg" && (
+              <div className="relative w-full aspect-[4/3] mb-3 bg-muted/30 rounded-md overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img 
+                  src={productImage} 
+                  alt={productName}
+                  className="object-contain w-full h-full"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+            
+            {productDescription && (
+              <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                {productDescription}
+              </p>
+            )}
+          </>
         )}
         
         {availability && (

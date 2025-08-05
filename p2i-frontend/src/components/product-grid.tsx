@@ -58,8 +58,11 @@ export function ProductGrid({
   // Gemini fallback notification when scraper failed
   const showGeminiFallbackMessage = source === "gemini" && fallback;
   
-  // Google Search fallback notification when scraper failed
-  const showGoogleFallbackMessage = source === "google";
+  // Google Search is now a primary method, not fallback
+  const showGoogleSearchMessage = source === "google" && !fallback;
+  
+  // Google Search fallback notification when AI discovery failed
+  const showGoogleFallbackMessage = source === "google" && fallback;
   
   // Debug logging
   console.log("ProductGrid products:", products);
@@ -69,7 +72,10 @@ export function ProductGrid({
     product && typeof product === 'object' && product !== null
   ) : [];
   
-  if (validProducts.length === 0) {
+  // Limit AI discovery (gemini) products to 4 items for better focus
+  const displayProducts = source === "gemini" ? validProducts.slice(0, 4) : validProducts;
+  
+  if (displayProducts.length === 0) {
     return (
       <Alert className="mb-4">
         <AlertTitle>No valid products found</AlertTitle>
@@ -82,12 +88,32 @@ export function ProductGrid({
   
   return (
     <div className="space-y-4">
+      {source === "gemini" && (
+        <Alert className="mb-4 border-purple-500/50 bg-purple-500/10">
+          <AlertTriangle className="text-purple-500" />
+          <AlertTitle>🤖 AI Discovery Results</AlertTitle>
+          <AlertDescription>
+            Showing top 4 AI-curated product recommendations based on your query. These are intelligently selected and analyzed for relevance.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {showGeminiFallbackMessage && (
         <Alert className="mb-4 border-amber-500/50 bg-amber-500/10">
           <AlertTriangle className="text-amber-500" />
           <AlertTitle>Using AI-suggested results</AlertTitle>
           <AlertDescription>
-            ⚠️ Could not fetch live data, showing AI-suggested results instead.
+            AI-suggested Results.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      {showGoogleSearchMessage && (
+        <Alert className="mb-4 border-blue-500/50 bg-blue-500/10">
+          <AlertTriangle className="text-blue-500" />
+          <AlertTitle>Using Google Search results</AlertTitle>
+          <AlertDescription>
+            🔍 Google Search Results
           </AlertDescription>
         </Alert>
       )}
@@ -97,13 +123,17 @@ export function ProductGrid({
           <AlertTriangle className="text-blue-500" />
           <AlertTitle>Using Google Search results</AlertTitle>
           <AlertDescription>
-            🔍 Could not fetch live data, showing Google Search results instead.
+            🔍 Could not fetch AI discovery results, showing Google Search results instead.
           </AlertDescription>
         </Alert>
       )}
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {validProducts.map((product, index) => {
+      <div className={`grid gap-4 ${
+        source === "gemini" 
+          ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2" // 2x2 grid for AI discovery
+          : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" // Regular 3-column grid for others
+      }`}>
+        {displayProducts.map((product, index) => {
           console.log("Rendering product:", product, "at index:", index);
           try {
             return (
