@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from "react";
 import { Separator } from "~/components/ui/separator";
 import { toast } from "sonner";
 import { MessagesArea } from "./messages-area";
@@ -34,12 +34,29 @@ const initialMessages: Message[] = [
 interface PromptInsightPanelProps {
   onPromptSubmit: (prompt: string) => Promise<void>;
   isLoading: boolean;
-  result?: RoutedResult | null;
-  originalPrompt?: string;
 }
 
-export function PromptInsightPanel({ onPromptSubmit, isLoading, result, originalPrompt }: PromptInsightPanelProps) {
+export interface PromptInsightPanelRef {
+  addResult: (result: RoutedResult, originalPrompt: string) => void;
+}
+
+export const PromptInsightPanel = forwardRef<PromptInsightPanelRef, PromptInsightPanelProps>(
+  ({ onPromptSubmit, isLoading }, ref) => {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
+
+  useImperativeHandle(ref, () => ({
+    addResult: (result: RoutedResult, originalPrompt: string) => {
+      const systemMessage: Message = {
+        id: `result-${Date.now()}`,
+        role: "system",
+        content: `Results for: "${originalPrompt}"`,
+        timestamp: formatTime(),
+        result: result,
+        originalPrompt: originalPrompt
+      };
+      setMessages((prev) => [...prev, systemMessage]);
+    }
+  }));
 
   // Set initial timestamp on client side only
   useEffect(() => {
@@ -104,12 +121,12 @@ export function PromptInsightPanel({ onPromptSubmit, isLoading, result, original
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-screen">
         <MessagesArea 
-          messages={messages} 
-          result={result}
-          originalPrompt={originalPrompt}
+          messages={messages}
         />
         <PromptInput onSubmit={handleSubmit} isLoading={isLoading} />
       </div>
     </div>
   );
-}
+});
+
+PromptInsightPanel.displayName = "PromptInsightPanel";

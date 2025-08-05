@@ -5,6 +5,9 @@ export type Message = {
   role: "user" | "system";
   content: string;
   timestamp: string;
+  // Optional fields for system messages with results
+  result?: any; // RoutedResult type - using any to avoid circular imports
+  originalPrompt?: string;
 };
 
 export type ParsedPrompt = {

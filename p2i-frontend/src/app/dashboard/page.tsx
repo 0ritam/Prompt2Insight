@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
-import { PromptInsightPanel } from "~/components/prompt-insight-panel";
+import { PromptInsightPanel, type PromptInsightPanelRef } from "~/components/prompt-insight-panel";
 import { PromptDebugger } from "~/components/prompt-debugger";
 import { ProductGrid } from "~/components/product-grid";
 import { DevModeToggle } from "~/components/dev-mode-toggle";
@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const [googleResults, setGoogleResults] = useState<any[]>([]);
   const [forceAI, setForceAI] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const promptPanelRef = useRef<PromptInsightPanelRef>(null);
   
   // Use our intent router
   const { routeUserIntent, isLoading: routerLoading } = useIntentRouter();
@@ -89,6 +90,7 @@ export default function DashboardPage() {
           amazonQueryData: queryResult.amazon_query_data || null,
         };
         setResult(routedResult);
+        promptPanelRef.current?.addResult(routedResult, prompt);
         
         toast.success(`Found ${routedResult.data.length} results from discovery workflow`);
       } else if (queryResult.type === "analysis_result") {
@@ -105,6 +107,7 @@ export default function DashboardPage() {
           fallback: false,
         };
         setResult(routedResult);
+        promptPanelRef.current?.addResult(routedResult, prompt);
         
         toast.success("Analysis completed successfully");
       }
@@ -131,10 +134,9 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background">
       <PromptInsightPanel 
+        ref={promptPanelRef}
         onPromptSubmit={handlePromptSubmit} 
         isLoading={loading || routerLoading}
-        result={result}
-        originalPrompt={originalPrompt}
       />
       
       <div className="container max-w-4xl mx-auto pb-8 px-4">
