@@ -80,99 +80,54 @@ export default function DashboardPage() {
 
       // Convert backend response to frontend format
       if (queryResult.type === "discovery_result") {
-        // Discovery result - determine the source based on backend response
-        // First check if backend explicitly indicates the source
-        let sourceType: ProductSource = "gemini"; // Default to AI discovery
+        console.log("Backend queryResult:", queryResult); // Debug log
+        console.log("Raw products:", queryResult.products); // Debug individual products
+        console.log("Raw links:", queryResult.links); // Debug individual links
         
-        // Check for explicit Google search indicators
-        if (queryResult.source === "google" || 
-            queryResult.method === "google" ||
-            queryResult.search_type === "google" ||
-            queryResult.search_engine === "google" ||
-            (queryResult.message && queryResult.message.toLowerCase().includes("google")) ||
-            (queryResult.products && queryResult.products.some((p: any) => 
-              p.source === "google_search" || p.source === "google" || p.search_engine === "google"))) {
-          sourceType = "google";
-        }
+        // The backend returns PRODUCTS (AI Discovery) and LINKS (Google Search) separately
+        // Products = AI Discovery results with specifications, prices, etc.
+        // Links = Google Search results with titles, URLs, descriptions
+        const aiProducts = queryResult.products || []; // AI products with specifications
+        const googleLinks = queryResult.links || []; // Google search results with URLs
         
-        // Check if products have typical Google search result structure
-        else if (queryResult.products && queryResult.products.length > 0) {
-          const firstProduct = queryResult.products[0];
-          // If products have URL and snippet without detailed specifications, likely Google search
-          if ((firstProduct.url || firstProduct.link) && 
-              (firstProduct.snippet || firstProduct.description) && 
-              !firstProduct.specifications && 
-              !firstProduct.rating && 
-              !firstProduct.features) {
-            sourceType = "google";
-          }
-        }
+        console.log("AI Products:", aiProducts.length, "Google Links:", googleLinks.length);
         
-        // Check if this is a fallback scenario (when primary method fails)
+        // Check if this is a fallback scenario
         const isFallback = queryResult.fallback === true || queryResult.google_fallback === true;
         
-        console.log("Backend queryResult:", queryResult); // Debug log
-        console.log("Detected source type:", sourceType); // Debug log
-        console.log("Products:", queryResult.products); // Debug log to see product structure
+        // First, add AI Discovery results if we have them
+        if (aiProducts.length > 0) {
+          const aiResult: RoutedResult = {
+            source: "gemini",
+            data: aiProducts.slice(0, 4), // Limit AI to 4 products, no links needed
+            originalPrompt: prompt,
+            fallback: isFallback,
+            amazonReady: queryResult.amazon_ready || false,
+            amazonQueryData: queryResult.amazon_query_data || null,
+          };
+          setResult(aiResult);
+          promptPanelRef.current?.addResult(aiResult, prompt);
+          toast.success(`Found ${aiProducts.length} AI Discovery results`);
+        }
         
-        // Create the result for the first source (AI Discovery or Google Search)
-        const routedResult: RoutedResult = {
-          source: sourceType,
-          data: [...(queryResult.products || []), ...(queryResult.links || [])],
-          originalPrompt: prompt,
-          fallback: isFallback,
-          amazonReady: queryResult.amazon_ready || false,
-          amazonQueryData: queryResult.amazon_query_data || null,
-        };
-        setResult(routedResult);
-        promptPanelRef.current?.addResult(routedResult, prompt);
-        
-        // Now create and add the second result (the other type)
-        // If we got AI Discovery, also add Google Search results and vice versa
-        setTimeout(async () => {
-          const alternativeSource: ProductSource = sourceType === "gemini" ? "google" : "gemini";
-          
-          try {
-            toast.info(`Fetching ${alternativeSource === 'google' ? 'Google Search' : 'AI Discovery'} results...`);
+        // Then, add Google Search results if we have them (after a short delay)
+        if (googleLinks.length > 0) {
+          setTimeout(() => {
+            const googleResult: RoutedResult = {
+              source: "google",
+              data: googleLinks.slice(0, 5), // Use Google links, limit to 5
+              originalPrompt: prompt,
+              fallback: isFallback,
+              amazonReady: queryResult.amazon_ready || false,
+              amazonQueryData: queryResult.amazon_query_data || null,
+            };
             
-            // Make actual backend call for the alternative source
-            const alternativeResponse = await fetch("http://localhost:8001/api/v1/query/handle_query", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ 
-                query: prompt,
-                max_results: alternativeSource === "gemini" ? 4 : 5, // 4 for AI Discovery, 5 for Google
-                force_method: alternativeSource === "google" ? "google_search" : "ai_discovery" // Force specific method
-              }),
-            });
-
-            if (alternativeResponse.ok) {
-              const alternativeQueryResult = await alternativeResponse.json();
-              
-              if (alternativeQueryResult.type === "discovery_result") {
-                const alternativeResult: RoutedResult = {
-                  source: alternativeSource,
-                  data: [...(alternativeQueryResult.products || []), ...(alternativeQueryResult.links || [])],
-                  originalPrompt: prompt,
-                  fallback: alternativeQueryResult.fallback === true || alternativeQueryResult.google_fallback === true,
-                  amazonReady: alternativeQueryResult.amazon_ready || false,
-                  amazonQueryData: alternativeQueryResult.amazon_query_data || null,
-                };
-                
-                promptPanelRef.current?.addResult(alternativeResult, prompt);
-                toast.success(`Found ${alternativeResult.data.length} additional results from ${alternativeSource === 'google' ? 'Google Search' : 'AI Discovery'}`);
-              }
-            } else {
-              // If alternative call fails, show fallback message
-              toast.warning(`Could not fetch ${alternativeSource === 'google' ? 'Google Search' : 'AI Discovery'} results`);
-            }
-          } catch (error) {
-            console.error("Error fetching alternative results:", error);
-            toast.warning(`Failed to fetch additional ${alternativeSource === 'google' ? 'Google Search' : 'AI Discovery'} results`);
-          }
-        }, 1000); // Add second result after 1 second
+            promptPanelRef.current?.addResult(googleResult, prompt);
+            toast.success(`Found ${googleLinks.length} Google Search results`);
+          }, 1000);
+        }
         
-        toast.success(`Found ${routedResult.data.length} results from ${sourceType === 'google' ? 'Google Search' : 'AI Discovery'}. Fetching additional results...`);
+        // Remove the fallback additional API call logic since we now have both types
       } else if (queryResult.type === "analysis_result") {
         // Analysis result - show AI answer
         const routedResult: RoutedResult = {
