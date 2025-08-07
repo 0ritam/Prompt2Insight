@@ -6,6 +6,9 @@ import { PromptInsightPanel, type PromptInsightPanelRef } from "~/components/pro
 import { PromptDebugger } from "~/components/prompt-debugger";
 import { ProductGrid } from "~/components/product-grid";
 import { DevModeToggle } from "~/components/dev-mode-toggle";
+import { ApiUsageTracker } from "~/components/api-usage-tracker";
+import { apiUsageCounter } from "~/lib/apiUsageTracker";
+import { apiLimitChecker } from "~/lib/apiLimitChecker";
 import { type ParsedPrompt, type ScrapeSession } from "~/types";
 import { useIntentRouter, type RoutedResult, type ProductSource } from "~/agents/useIntentRouter";
 import { generateSessionId } from "~/lib/session";
@@ -28,6 +31,17 @@ export default function DashboardPage() {
 
   const handlePromptSubmit = async (prompt: string) => {
     try {
+      // Check API limits before proceeding
+      if (apiLimitChecker.isGeminiLimitReached()) {
+        toast.error("Daily Gemini API limit reached (40 requests). Please try again tomorrow.");
+        return;
+      }
+
+      if (apiLimitChecker.isScrapeDoSearchLimitReached()) {
+        toast.error("Monthly ScrapeDo search limit reached (10 searches). Please try next month.");
+        return;
+      }
+
       setLoading(true);
       setOriginalPrompt(prompt);
 
@@ -46,6 +60,13 @@ export default function DashboardPage() {
       }
 
       toast.info("Processing your query...");
+
+      // Track API usage - increment for main query
+      apiUsageCounter.incrementUsage('gemini'); // AI Discovery
+      apiUsageCounter.incrementUsage('google_search'); // Google Search
+      
+      // Increment ScrapeDo search count (1 search = 5 credits)
+      apiLimitChecker.incrementScrapeDoSearch();
 
       // NEW: Call the unified Central Query Handler endpoint
       const response = await fetch("http://localhost:8001/api/v1/query/handle_query", {
@@ -227,6 +248,11 @@ export default function DashboardPage() {
                 </a>
               )}
             </div>
+          </div>
+          
+          {/* API Usage Tracker */}
+          <div className="mb-8">
+            <ApiUsageTracker />
           </div>
         </div>
       </div>
