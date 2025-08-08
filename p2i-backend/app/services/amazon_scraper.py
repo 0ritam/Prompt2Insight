@@ -4,7 +4,12 @@ from bs4 import BeautifulSoup
 from typing import List, Dict, Any, Optional
 import json
 import re
+import os
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 class AmazonScraper:
     """
@@ -13,8 +18,10 @@ class AmazonScraper:
     """
     
     def __init__(self):
-        """Initialize the Amazon scraper with scrape.do token."""
-        self.token = "a3ed607890a34762b9b21c237460ab8fa1050cbfc60"
+        """Initialize the Amazon scraper with scrape.do token from environment variables."""
+        self.token = os.getenv("SCRAPEDO_API_KEY")
+        if not self.token:
+            raise ValueError("SCRAPEDO_API_KEY not found in environment variables")
         self.max_products = 5  # Maximum products to scrape from first page
         
     def _build_search_query(self, products: List[str], filters: Dict[str, Any], attributes: List[str]) -> str:
