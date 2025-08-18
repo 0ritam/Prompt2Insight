@@ -159,9 +159,9 @@ export function ApiUsageTracker() {
         {
           service: "ScrapeDo Searches",
           current: apiLimitChecker.getScrapeDoSearchCount(),
-          limit: 10, // 10 searches per month limit
+          limit: 100, // 100 searches per month limit
           resetDate: "Monthly reset",
-          status: calculateStatus(apiLimitChecker.getScrapeDoSearchCount(), 10),
+          status: calculateStatus(apiLimitChecker.getScrapeDoSearchCount(), 100),
           description: "Search limit (1 search = 5 credits)"
         }
       ];

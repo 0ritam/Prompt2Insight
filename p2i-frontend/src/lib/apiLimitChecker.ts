@@ -28,7 +28,7 @@ class ApiLimitChecker {
     return (parsed.count || 0) >= 40;
   }
 
-  // Check if ScrapeDo search limit is reached (10 searches = 50 credits)
+  // Check if ScrapeDo search limit is reached (100 searches = 500 credits)
   isScrapeDoSearchLimitReached(): boolean {
     if (!this.storage) return false;
     
@@ -40,7 +40,7 @@ class ApiLimitChecker {
     const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
     if (parsed.month !== currentMonth) return false; // New month, reset
     
-    return (parsed.searches || 0) >= 10;
+    return (parsed.searches || 0) >= 100;
   }
 
   // Increment ScrapeDo search count (separate from credits)
@@ -81,7 +81,7 @@ class ApiLimitChecker {
   getRemainingLimits() {
     return {
       gemini: Math.max(0, 40 - this.getGeminiUsage()),
-      scrapeDoSearches: Math.max(0, 10 - this.getScrapeDoSearchCount()),
+      scrapeDoSearches: Math.max(0, 100 - this.getScrapeDoSearchCount()),
       serper: 2483, // 2483 credits remaining (not used)
       scrapeDo: Math.max(0, 1000 - 273) // Current remaining credits
     };

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
+import { Button } from "~/components/ui/button";
 import { PromptInsightPanel, type PromptInsightPanelRef } from "~/components/prompt-insight-panel";
 import { PromptDebugger } from "~/components/prompt-debugger";
 import { ProductGrid } from "~/components/product-grid";
@@ -38,7 +39,7 @@ export default function DashboardPage() {
       }
 
       if (apiLimitChecker.isScrapeDoSearchLimitReached()) {
-        toast.error("Monthly ScrapeDo search limit reached (10 searches). Please try next month.");
+        toast.error("Monthly ScrapeDo search limit reached (100 searches). Please try next month.");
         return;
       }
 
@@ -101,9 +102,17 @@ export default function DashboardPage() {
 
       // Convert backend response to frontend format
       if (queryResult.type === "discovery_result") {
+        console.log("=== DEBUG: Raw Backend Response ===");
+        console.log("Full queryResult:", JSON.stringify(queryResult, null, 2));
         console.log("Backend queryResult:", queryResult); // Debug log
         console.log("Raw products:", queryResult.products); // Debug individual products
         console.log("Raw links:", queryResult.links); // Debug individual links
+        console.log("Query type:", queryResult.type);
+        console.log("Amazon ready:", queryResult.amazon_ready);
+        console.log("Fallback status:", queryResult.fallback || queryResult.google_fallback);
+        console.log("Price chart image:", queryResult.price_chart_image ? "EXISTS" : "MISSING");
+        console.log("Specs chart image:", queryResult.specs_chart_image ? "EXISTS" : "MISSING");
+        console.log("=== END DEBUG ===");
         
         // The backend returns PRODUCTS (AI Discovery) and LINKS (Google Search) separately
         // Products = AI Discovery results with specifications, prices, etc.
@@ -125,6 +134,9 @@ export default function DashboardPage() {
             fallback: isFallback,
             amazonReady: queryResult.amazon_ready || false,
             amazonQueryData: queryResult.amazon_query_data || null,
+            // ADD: Server-generated chart images
+            price_chart_image: queryResult.price_chart_image || null,
+            specs_chart_image: queryResult.specs_chart_image || null,
           };
           setResult(aiResult);
           promptPanelRef.current?.addResult(aiResult, prompt);

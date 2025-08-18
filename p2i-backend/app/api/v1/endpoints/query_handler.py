@@ -32,6 +32,7 @@ try:
     from app.core.product_discoverer import find_products_with_ai
     from app.core.rag_pipeline import run_rag_query
     from app.core.amazon_prompt_parser import parse_query_for_amazon
+    from app.core.chart_generator import generate_price_chart_image, generate_specs_chart_image
     from app.scrapers.flipkart.google_search import google_search
     logger.info("✅ All Phase 8 modules imported successfully")
 except ImportError as e:
@@ -51,6 +52,7 @@ except ImportError as e:
             "attributes": [],
             "max_products_per_query": 5
         }
+    
     class GoogleSearchFallback:
         def search_products(self, query, num_results=5):
             return []
@@ -74,6 +76,9 @@ class DiscoveryResult(BaseModel):
     # NEW: Amazon scraper integration data
     amazon_ready: bool = True
     amazon_query_data: Optional[Dict[str, Any]] = None
+    # NEW: Server-side generated chart images
+    price_chart_image: Optional[str] = None
+    specs_chart_image: Optional[str] = None
 
 class AnalysisResult(BaseModel):
     """Response model for analysis queries."""
@@ -129,6 +134,11 @@ async def handle_query(request: QueryRequest):
                 logger.info("🛒 Preparing Amazon query data...")
                 amazon_query_data = parse_query_for_amazon(request.query)
                 
+                # NEW: Generate chart images server-side
+                logger.info("📊 Generating chart images...")
+                price_chart = generate_price_chart_image(ai_products)
+                specs_chart = generate_specs_chart_image(ai_products)
+                
                 execution_time = time.time() - start_time
                 
                 logger.info(f"✅ Discovery completed: {len(ai_products)} AI products, {len(google_results)} Google results")
@@ -140,7 +150,9 @@ async def handle_query(request: QueryRequest):
                     execution_time=execution_time,
                     sources=["ai_discoverer", "google_search"],
                     amazon_ready=True,
-                    amazon_query_data=amazon_query_data
+                    amazon_query_data=amazon_query_data,
+                    price_chart_image=price_chart,
+                    specs_chart_image=specs_chart
                 )
                 
             except Exception as e:
@@ -160,7 +172,9 @@ async def handle_query(request: QueryRequest):
                     execution_time=execution_time,
                     sources=["ai_discoverer", "google_search"],
                     amazon_ready=bool(amazon_query_data),
-                    amazon_query_data=amazon_query_data
+                    amazon_query_data=amazon_query_data,
+                    price_chart_image=None,
+                    specs_chart_image=None
                 )
             
         elif intent == "analytical_query":
@@ -209,6 +223,10 @@ async def handle_query(request: QueryRequest):
                 # Prepare Amazon data for fallback too
                 amazon_query_data = parse_query_for_amazon(request.query)
                 
+                # Generate chart images for fallback too
+                price_chart = generate_price_chart_image(ai_products)
+                specs_chart = generate_specs_chart_image(ai_products)
+                
                 execution_time = time.time() - start_time
                 
                 return DiscoveryResult(
@@ -218,7 +236,9 @@ async def handle_query(request: QueryRequest):
                     execution_time=execution_time,
                     sources=["ai_discoverer", "google_search"],
                     amazon_ready=True,
-                    amazon_query_data=amazon_query_data
+                    amazon_query_data=amazon_query_data,
+                    price_chart_image=price_chart,
+                    specs_chart_image=specs_chart
                 )
                 
             except Exception as e:
@@ -231,7 +251,9 @@ async def handle_query(request: QueryRequest):
                     execution_time=execution_time,
                     sources=["ai_discoverer", "google_search"],
                     amazon_ready=False,
-                    amazon_query_data=None
+                    amazon_query_data=None,
+                    price_chart_image=None,
+                    specs_chart_image=None
                 )
             
     except Exception as e:

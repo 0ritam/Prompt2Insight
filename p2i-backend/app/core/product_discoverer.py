@@ -41,24 +41,39 @@ class AIProductDiscoverer:
                                             "type": "string",
                                             "description": "Product name"
                                         },
-                                        "specifications": {
-                                            "type": "string",
-                                            "description": "Key product specifications"
+                                        "price_value": {
+                                            "type": "number",
+                                            "description": "Numeric price value for sorting (single number, no commas)"
                                         },
                                         "price_display": {
                                             "type": "string",
                                             "description": "Price as displayed (e.g., '₹55,000 - ₹60,000')"
                                         },
-                                        "price_value": {
-                                            "type": "number",
-                                            "description": "Numeric price value for sorting"
+                                        "specs": {
+                                            "type": "object",
+                                            "description": "Numerical specifications for charts",
+                                            "properties": {
+                                                "ram_gb": {
+                                                    "type": "number",
+                                                    "description": "RAM in GB (use 0 if not available)"
+                                                },
+                                                "storage_gb": {
+                                                    "type": "number", 
+                                                    "description": "Storage in GB (use 0 if not available)"
+                                                },
+                                                "battery_mah": {
+                                                    "type": "number",
+                                                    "description": "Battery capacity in mAh (use 0 if not available)"
+                                                }
+                                            },
+                                            "required": ["ram_gb", "storage_gb", "battery_mah"]
                                         },
                                         "purchase_url": {
                                             "type": "string",
                                             "description": "Site name where product is available (e.g., 'Flipkart', 'Amazon.in', 'Croma', 'Reliance Digital')"
                                         }
                                     },
-                                    "required": ["name", "specifications", "price_display", "price_value", "purchase_url"]
+                                    "required": ["name", "price_value", "price_display", "specs", "purchase_url"]
                                 }
                             }
                         },
@@ -85,30 +100,26 @@ class AIProductDiscoverer:
         try:
             # Construct the detailed prompt for product discovery
             prompt = f"""
-You are an expert product researcher for the Indian market. Your task is to find products matching the user's query and return them as a structured list using the 'extract_products' tool.
+You are an expert data extraction agent for the Indian market. Your task is to find products matching the user's query and return them as a structured list using the 'extract_products' tool.
 
 User Query: "{query}"
 
 **CRITICAL INSTRUCTIONS for Data Extraction:**
-- Find a maximum of 5 products that match the user's query.
-- Research current products available in the Indian market with realistic pricing.
-- For each product, provide detailed specifications similar to this format:
-  
-  Example: "HP Victus 15 (Intel Core i5 12th Gen / RTX 2050)"
-  - Processor: Intel Core i5-12450H (12th Gen)
-  - Graphics: NVIDIA GeForce RTX 2050 (4GB GDDR6)  
-  - RAM: 8GB/16GB DDR4 (configurable)
-  - Storage: 512GB PCIe Gen4 NVMe SSD
-  - Display: 15.6-inch FHD (1920x1080) IPS, 144Hz refresh rate
-
+- Find a maximum of 5 products.
+- For each product, you MUST extract its key specifications and place them in the 'specs' object. The values for 'ram_gb', 'storage_gb', and 'battery_mah' must be numbers. If a spec is not mentioned, use a value of 0.
 - **Price Extraction Rules:**
-    - Extract a `price_display` string exactly as it appears (e.g., "₹58,990", "₹55,000 - ₹60,000").
-    - Extract a `price_value` as a single number (remove commas and currency symbols).
+    - You MUST extract a `price_display` string (e.g., "₹58,990").
+    - You MUST also extract a `price_value` which is a single integer or float, removing all currency symbols and commas.
     - If the price is a range (e.g., "₹55,000 - ₹60,000"), use the **lower number** for `price_value` (55000).
+
+- **Specifications Extraction Rules:**
+    - `ram_gb`: Extract RAM in GB as a number (e.g., 8, 16, 32). Use 0 if not available.
+    - `storage_gb`: Extract storage in GB as a number (e.g., 256, 512, 1024). Use 0 if not available.
+    - `battery_mah`: Extract battery capacity in mAh as a number (e.g., 3000, 4500, 5000). Use 0 if not available.
 
 - **Site Information**: For `purchase_url`, provide only the site name where the product is typically available (e.g., "Flipkart", "Amazon.in", "Croma", "Reliance Digital").
 
-Please research and use the extract_products tool to return accurate, current product information.
+Please research and use the extract_products tool to return accurate, current product information with complete numerical specifications.
 """
 
             logger.info(f"Discovering products for query: {query}")
@@ -127,11 +138,59 @@ Please research and use the extract_products tool to return accurate, current pr
                         function_call = part.function_call
                         if function_call.name == "extract_products":
                             # Extract the products from the function call arguments
-                            products_data = dict(function_call.args)
-                            products = products_data.get("products", [])
-                            
-                            logger.info(f"AI Product Discoverer found {len(products)} products")
-                            return products
+                            # Convert protobuf MapComposite to regular dict to avoid serialization issues
+                            try:
+                                import json
+                                # First, convert the args to a dict recursively
+                                def convert_protobuf_to_dict(obj):
+                                    """Recursively convert protobuf objects to Python dictionaries"""
+                                    if hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes)):
+                                        if hasattr(obj, 'items'):  # dict-like object
+                                            return {str(k): convert_protobuf_to_dict(v) for k, v in obj.items()}
+                                        else:  # list-like object
+                                            return [convert_protobuf_to_dict(item) for item in obj]
+                                    else:
+                                        return obj
+                                
+                                # Convert the protobuf args to clean Python objects
+                                clean_args = convert_protobuf_to_dict(function_call.args)
+                                products = clean_args.get("products", [])
+                                
+                                # Ensure products is a list of proper dictionaries
+                                if isinstance(products, list):
+                                    clean_products = []
+                                    for product in products:
+                                        if isinstance(product, dict):
+                                            clean_products.append(product)
+                                        else:
+                                            # Convert any remaining protobuf objects
+                                            clean_products.append(convert_protobuf_to_dict(product))
+                                    
+                                    logger.info(f"AI Product Discoverer found {len(clean_products)} products")
+                                    return clean_products
+                                else:
+                                    logger.warning(f"Products data is not a list: {type(products)}")
+                                    return []
+                                    
+                            except Exception as conversion_error:
+                                logger.warning(f"Error converting protobuf response: {conversion_error}")
+                                # Fallback: try manual extraction
+                                try:
+                                    products = []
+                                    raw_products = function_call.args.get("products", [])
+                                    for item in raw_products:
+                                        # Convert each product manually
+                                        product_dict = {}
+                                        if hasattr(item, 'items'):
+                                            for key, value in item.items():
+                                                product_dict[str(key)] = value
+                                        products.append(product_dict)
+                                    
+                                    logger.info(f"AI Product Discoverer found {len(products)} products (manual conversion)")
+                                    return products
+                                except Exception as fallback_error:
+                                    logger.error(f"Manual conversion also failed: {fallback_error}")
+                                    return []
             
             logger.warning("No structured products returned from AI")
             return []

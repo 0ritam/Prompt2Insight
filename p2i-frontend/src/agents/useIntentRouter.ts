@@ -19,6 +19,9 @@ export interface RoutedResult {
   // NEW: Amazon integration fields
   amazonReady?: boolean;
   amazonQueryData?: any;
+  // NEW: Server-side generated chart images
+  price_chart_image?: string;
+  specs_chart_image?: string;
 }
 
 interface IntentRouterState {

@@ -18,6 +18,31 @@ export function MessagesArea({ messages }: MessagesAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isScrapingAmazon, setIsScrapingAmazon] = useState<{[key: string]: boolean}>({});
   const [amazonResults, setAmazonResults] = useState<{[key: string]: any[]}>({});
+  const [showCharts, setShowCharts] = useState<{[key: string]: { price: boolean; specs: boolean }}>({});
+
+  const handleShowPriceChart = (messageId: string) => {
+    setShowCharts(prev => ({ 
+      ...prev, 
+      [messageId]: { 
+        price: true, 
+        specs: prev[messageId]?.specs || false 
+      } 
+    }));
+  };
+
+  const handleShowSpecsChart = (messageId: string) => {
+    setShowCharts(prev => ({ 
+      ...prev, 
+      [messageId]: { 
+        price: prev[messageId]?.price || false,
+        specs: true 
+      } 
+    }));
+  };
+
+  const handleHideCharts = (messageId: string) => {
+    setShowCharts(prev => ({ ...prev, [messageId]: { price: false, specs: false } }));
+  };
 
   const handleAmazonScrape = async (messageId: string, result: RoutedResult) => {
     if (!result?.amazonQueryData) {
@@ -100,6 +125,78 @@ export function MessagesArea({ messages }: MessagesAreaProps) {
                         prompt={message.originalPrompt}
                         fallback={message.result.fallback || message.result.googleFallback}
                       />
+                      
+                      {/* Server-side Chart Images - Only show for AI Discovery results with chart data */}
+                      {(message.result.source === "gemini" || message.result.source === "ai_discoverer") && (message.result.price_chart_image || message.result.specs_chart_image) && (
+                        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <p className="text-blue-800 font-medium text-sm">
+                                📊 Visualize Your Results
+                              </p>
+                              <p className="text-blue-600 text-xs mt-1">
+                                Server-generated chart comparisons
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              {message.result.price_chart_image && (
+                                <Button
+                                  onClick={() => handleShowPriceChart(message.id)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                                >
+                                  📊 Price Chart
+                                </Button>
+                              )}
+                              {message.result.specs_chart_image && (
+                                <Button
+                                  onClick={() => handleShowSpecsChart(message.id)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                                >
+                                  ⚙️ Specs Chart
+                                </Button>
+                              )}
+                              {(showCharts[message.id]?.price || showCharts[message.id]?.specs) && (
+                                <Button
+                                  onClick={() => handleHideCharts(message.id)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-gray-300 text-gray-600 hover:bg-gray-100"
+                                >
+                                  ✖️ Hide Charts
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Price Chart Image */}
+                          {showCharts[message.id]?.price && message.result.price_chart_image && (
+                            <div className="mt-4">
+                              <h4 className="text-lg font-semibold mb-2">Price Comparison Chart</h4>
+                              <img 
+                                src={`data:image/png;base64,${message.result.price_chart_image}`}
+                                alt="Product Price Comparison Chart"
+                                className="w-full h-auto border border-gray-300 rounded-lg shadow-sm"
+                              />
+                            </div>
+                          )}
+                          
+                          {/* Specs Chart Image */}
+                          {showCharts[message.id]?.specs && message.result.specs_chart_image && (
+                            <div className="mt-4">
+                              <h4 className="text-lg font-semibold mb-2">Specifications Comparison Chart</h4>
+                              <img 
+                                src={`data:image/png;base64,${message.result.specs_chart_image}`}
+                                alt="Product Specifications Comparison Chart"
+                                className="w-full h-auto border border-gray-300 rounded-lg shadow-sm"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
                       
                       {/* Success message after ProductGrid */}
                       <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
