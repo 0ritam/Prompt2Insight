@@ -37,6 +37,7 @@ env/
 ENV/
 env.bak/
 venv.bak/
+.venv/
 
 # ChromaDB and Vector Database files
 chroma_db_store/
