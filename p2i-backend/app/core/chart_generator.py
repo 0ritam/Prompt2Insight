@@ -56,7 +56,7 @@ def generate_price_chart_image(products: List[Dict[str, Any]]) -> Optional[str]:
         # Color scheme - gradient from green (cheapest) to red (most expensive)
         colors = plt.cm.RdYlGn_r(np.linspace(0.2, 0.8, len(valid_products)))
         
-        # Create horizontal bar chart
+        # Create horizontal bar chartvs
         bars = ax.barh(names, prices, color=colors, edgecolor='white', linewidth=1)
         
         # Customize the chart
